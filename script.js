@@ -3,37 +3,43 @@ const stores = [
     key: "home",
     number: "01",
     name: "Home & Living",
-    description: "Calm spaces, useful details and smarter everyday living."
+    description: "Calm spaces. Smarter living.",
+    image: "./store-home.png"
   },
   {
     key: "tech",
     number: "02",
     name: "Tech & Gadgets",
-    description: "Useful technology and everyday upgrades."
+    description: "Useful technology. Everyday upgrades.",
+    image: "./store-tech.png"
   },
   {
     key: "auto",
     number: "03",
     name: "Auto Essentials",
-    description: "Better drives and smarter accessories."
+    description: "Better drives. Smarter accessories.",
+    image: "./store-auto.png"
   },
   {
     key: "travel",
     number: "04",
     name: "Travel & Explore",
-    description: "Pack lighter, travel smarter and go further."
+    description: "Pack lighter. Go further.",
+    image: "./store-travel.png"
   },
   {
     key: "beauty",
     number: "05",
     name: "Beauty & Care",
-    description: "Simple rituals and everyday care."
+    description: "Simple rituals. Everyday care.",
+    image: "./store-beauty.png"
   },
   {
     key: "pets",
     number: "06",
     name: "Pets & Friends",
-    description: "Small comforts for happier companions."
+    description: "Small comforts. Happier companions.",
+    image: "./store-pets.png"
   }
 ];
 
@@ -41,162 +47,356 @@ let currentIndex = 3;
 let touchStartX = 0;
 let touchEndX = 0;
 
-const storefronts = [...document.querySelectorAll(".storefront")];
+const storeCards = [...document.querySelectorAll(".store-card")];
 
-const currentStoreNumber =
-  document.getElementById("currentStoreNumber");
+const currentNumber = document.getElementById("currentNumber");
+const currentName = document.getElementById("currentName");
 
-const currentStoreName =
-  document.getElementById("currentStoreName");
+const prevBtn = document.getElementById("prevBtn");
+const nextBtn = document.getElementById("nextBtn");
 
-const prevStoreButton =
-  document.getElementById("prevStore");
+const storeView = document.getElementById("storeView");
+const storeTitle = document.getElementById("storeTitle");
+const storeDescription = document.getElementById("storeDescription");
+const storeInteriorHero = document.getElementById("storeInteriorHero");
 
-const nextStoreButton =
-  document.getElementById("nextStore");
+const backBtn = document.getElementById("backBtn");
 
-const storeView =
-  document.getElementById("storeView");
+const menuBtn = document.getElementById("menuBtn");
+const drawer = document.getElementById("drawer");
+const closeDrawer = document.getElementById("closeDrawer");
+const drawerBackdrop = document.getElementById("drawerBackdrop");
 
-const storeViewTitle =
-  document.getElementById("storeViewTitle");
+const mallViewport = document.getElementById("mallViewport");
 
-const storeViewDescription =
-  document.getElementById("storeViewDescription");
 
-const backToMall =
-  document.getElementById("backToMall");
+function normalizeIndex(index) {
+  if (index < 0) {
+    return stores.length - 1;
+  }
 
-function updateActiveStore() {
-  storefronts.forEach((storefront, index) => {
-    storefront.classList.toggle(
-      "active-store",
-      index === currentIndex
-    );
+  if (index >= stores.length) {
+    return 0;
+  }
 
-    storefront.classList.toggle(
-      "mobile-active",
-      index === currentIndex
-    );
-  });
-
-  const store = stores[currentIndex];
-
-  currentStoreNumber.textContent = store.number;
-  currentStoreName.textContent = store.name;
+  return index;
 }
+
+
+function updateMall() {
+  currentIndex = normalizeIndex(currentIndex);
+
+  const activeStore = stores[currentIndex];
+
+  currentNumber.textContent = activeStore.number;
+  currentName.textContent = activeStore.name;
+
+  storeCards.forEach((card, index) => {
+    const offset = index - currentIndex;
+
+    card.classList.toggle(
+      "is-active",
+      index === currentIndex
+    );
+
+    if (window.innerWidth <= 760) {
+      card.style.transform =
+        index === currentIndex
+          ? "translateX(-50%) scale(1)"
+          : "translateX(-50%) scale(.92)";
+
+      card.style.opacity =
+        index === currentIndex ? "1" : "0";
+
+      card.style.pointerEvents =
+        index === currentIndex ? "auto" : "none";
+
+      card.style.zIndex =
+        index === currentIndex ? "40" : "10";
+
+      return;
+    }
+
+    let translateX = 0;
+    let translateY = 0;
+    let scale = 0.75;
+    let rotateY = 0;
+    let opacity = 0;
+    let zIndex = 10;
+
+    if (offset === 0) {
+      translateX = -50;
+      translateY = 0;
+      scale = 1.04;
+      rotateY = 0;
+      opacity = 1;
+      zIndex = 50;
+    }
+
+    if (offset === -1 || offset === 5) {
+      translateX = -155;
+      translateY = 10;
+      scale = 0.86;
+      rotateY = 9;
+      opacity = 0.78;
+      zIndex = 35;
+    }
+
+    if (offset === 1 || offset === -5) {
+      translateX = 55;
+      translateY = 10;
+      scale = 0.86;
+      rotateY = -9;
+      opacity = 0.78;
+      zIndex = 35;
+    }
+
+    if (offset === -2 || offset === 4) {
+      translateX = -235;
+      translateY = 34;
+      scale = 0.68;
+      rotateY = 14;
+      opacity = 0.42;
+      zIndex = 20;
+    }
+
+    if (offset === 2 || offset === -4) {
+      translateX = 135;
+      translateY = 34;
+      scale = 0.68;
+      rotateY = -14;
+      opacity = 0.42;
+      zIndex = 20;
+    }
+
+    if (Math.abs(offset) === 3) {
+      opacity = 0;
+      zIndex = 5;
+    }
+
+    card.style.left = "50%";
+    card.style.right = "auto";
+    card.style.top = "39%";
+    card.style.bottom = "auto";
+
+    card.style.transform = `
+      translateX(${translateX}%)
+      translateY(${translateY}px)
+      rotateY(${rotateY}deg)
+      scale(${scale})
+    `;
+
+    card.style.opacity = opacity;
+    card.style.zIndex = zIndex;
+
+    card.style.pointerEvents =
+      opacity > 0.5 ? "auto" : "none";
+  });
+}
+
 
 function nextStore() {
   currentIndex++;
-
-  if (currentIndex >= stores.length) {
-    currentIndex = 0;
-  }
-
-  updateActiveStore();
+  updateMall();
 }
+
 
 function previousStore() {
   currentIndex--;
-
-  if (currentIndex < 0) {
-    currentIndex = stores.length - 1;
-  }
-
-  updateActiveStore();
+  updateMall();
 }
 
-function openStore(storeKey) {
-  const storeIndex = stores.findIndex(
+
+function jumpToStore(storeKey) {
+  const index = stores.findIndex(
     (store) => store.key === storeKey
   );
 
-  if (storeIndex === -1) return;
+  if (index === -1) return;
 
-  currentIndex = storeIndex;
-  updateActiveStore();
+  currentIndex = index;
+
+  updateMall();
+
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth"
+  });
+}
+
+
+function openStore(storeKey) {
+  const index = stores.findIndex(
+    (store) => store.key === storeKey
+  );
+
+  if (index === -1) return;
+
+  currentIndex = index;
 
   const store = stores[currentIndex];
 
-  storeViewTitle.textContent = store.name;
-  storeViewDescription.textContent = store.description;
+  updateMall();
+
+  storeTitle.textContent = store.name;
+  storeDescription.textContent = store.description;
+
+  storeInteriorHero.style.backgroundImage = `
+    linear-gradient(
+      to bottom,
+      rgba(0,0,0,.12),
+      rgba(0,0,0,.52)
+    ),
+    url("${store.image}")
+  `;
+
+  storeInteriorHero.style.backgroundSize = "cover";
+  storeInteriorHero.style.backgroundPosition = "center";
 
   storeView.classList.add("active");
-  storeView.setAttribute("aria-hidden", "false");
+
+  storeView.setAttribute(
+    "aria-hidden",
+    "false"
+  );
 
   document.body.style.overflow = "hidden";
+
+  storeView.scrollTop = 0;
 }
 
-function closeStore() {
+
+function closeStoreView() {
   storeView.classList.remove("active");
-  storeView.setAttribute("aria-hidden", "true");
+
+  storeView.setAttribute(
+    "aria-hidden",
+    "true"
+  );
 
   document.body.style.overflow = "";
 }
 
-storefronts.forEach((storefront) => {
-  storefront.addEventListener("click", () => {
+
+function openDirectory() {
+  drawer.classList.add("open");
+  drawerBackdrop.classList.add("open");
+}
+
+
+function closeDirectory() {
+  drawer.classList.remove("open");
+  drawerBackdrop.classList.remove("open");
+}
+
+
+storeCards.forEach((card) => {
+  card.addEventListener("click", () => {
     const storeKey =
-      storefront.getAttribute("data-store");
+      card.getAttribute("data-store");
 
     openStore(storeKey);
   });
 });
 
+
 document
-  .querySelectorAll("[data-directory-store]")
+  .querySelectorAll("[data-directory]")
   .forEach((button) => {
     button.addEventListener("click", () => {
       const storeKey =
-        button.getAttribute("data-directory-store");
+        button.getAttribute("data-directory");
 
-      const storeIndex = stores.findIndex(
-        (store) => store.key === storeKey
-      );
-
-      if (storeIndex === -1) return;
-
-      currentIndex = storeIndex;
-      updateActiveStore();
-
-      document
-        .getElementById("mall")
-        .scrollIntoView({
-          behavior: "smooth"
-        });
+      jumpToStore(storeKey);
     });
   });
 
-if (prevStoreButton) {
-  prevStoreButton.addEventListener(
-    "click",
-    previousStore
-  );
-}
 
-if (nextStoreButton) {
-  nextStoreButton.addEventListener(
+document
+  .querySelectorAll("[data-drawer-store]")
+  .forEach((button) => {
+    button.addEventListener("click", () => {
+      const storeKey =
+        button.getAttribute("data-drawer-store");
+
+      closeDirectory();
+
+      jumpToStore(storeKey);
+    });
+  });
+
+
+if (nextBtn) {
+  nextBtn.addEventListener(
     "click",
     nextStore
   );
 }
 
-if (backToMall) {
-  backToMall.addEventListener(
+
+if (prevBtn) {
+  prevBtn.addEventListener(
     "click",
-    closeStore
+    previousStore
   );
 }
+
+
+if (backBtn) {
+  backBtn.addEventListener(
+    "click",
+    closeStoreView
+  );
+}
+
+
+if (menuBtn) {
+  menuBtn.addEventListener(
+    "click",
+    openDirectory
+  );
+}
+
+
+if (closeDrawer) {
+  closeDrawer.addEventListener(
+    "click",
+    closeDirectory
+  );
+}
+
+
+if (drawerBackdrop) {
+  drawerBackdrop.addEventListener(
+    "click",
+    closeDirectory
+  );
+}
+
 
 document.addEventListener(
   "keydown",
   (event) => {
 
     if (
+      event.key === "Escape" &&
       storeView.classList.contains("active")
-      && event.key === "Escape"
     ) {
-      closeStore();
+      closeStoreView();
+      return;
+    }
+
+    if (
+      event.key === "Escape" &&
+      drawer.classList.contains("open")
+    ) {
+      closeDirectory();
+      return;
+    }
+
+    if (
+      storeView.classList.contains("active")
+    ) {
       return;
     }
 
@@ -210,12 +410,10 @@ document.addEventListener(
   }
 );
 
-const mallStage =
-  document.querySelector(".mall-stage");
 
-if (mallStage) {
+if (mallViewport) {
 
-  mallStage.addEventListener(
+  mallViewport.addEventListener(
     "touchstart",
     (event) => {
       touchStartX =
@@ -224,34 +422,38 @@ if (mallStage) {
     { passive: true }
   );
 
-  mallStage.addEventListener(
+
+  mallViewport.addEventListener(
     "touchend",
     (event) => {
+
       touchEndX =
         event.changedTouches[0].screenX;
 
-      handleSwipe();
+      const distance =
+        touchEndX - touchStartX;
+
+      if (Math.abs(distance) < 45) {
+        return;
+      }
+
+      if (distance < 0) {
+        nextStore();
+      } else {
+        previousStore();
+      }
+
     },
     { passive: true }
   );
 
 }
 
-function handleSwipe() {
-  const swipeDistance =
-    touchEndX - touchStartX;
 
-  const minimumSwipe = 45;
+window.addEventListener(
+  "resize",
+  updateMall
+);
 
-  if (Math.abs(swipeDistance) < minimumSwipe) {
-    return;
-  }
 
-  if (swipeDistance < 0) {
-    nextStore();
-  } else {
-    previousStore();
-  }
-}
-
-updateActiveStore();
+updateMall();
