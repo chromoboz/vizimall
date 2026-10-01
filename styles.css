@@ -305,90 +305,67 @@ img {
 
 
 /* =========================
-   HOME
+   HOTSPOT POSITIONS
 ========================= */
 
+/* HOME */
 .home-hotspot {
-  left: 3.2%;
-  top: 29%;
+  left: 2.2%;
+  top: 27%;
 
   width: 11.8%;
   height: 42%;
 }
 
-
-/* =========================
-   BEAUTY
-========================= */
-
+/* BEAUTY */
 .beauty-hotspot {
-  left: 19.1%;
-  top: 29%;
+  left: 17.8%;
+  top: 27%;
 
   width: 11.8%;
   height: 42%;
 }
 
-
-/* =========================
-   TECH
-========================= */
-
+/* TECH */
 .tech-hotspot {
-  left: 34.6%;
-  top: 29%;
+  left: 31.8%;
+  top: 27%;
 
   width: 11.8%;
   height: 42%;
 }
 
-
-/* =========================
-   TRAVEL
-========================= */
-
+/* TRAVEL */
 .travel-hotspot {
-  left: 49.3%;
-  top: 29%;
+  left: 46.2%;
+  top: 27%;
 
   width: 11.8%;
   height: 42%;
 }
 
-
-/* =========================
-   AUTO
-========================= */
-
+/* AUTO */
 .auto-hotspot {
-  left: 63.2%;
-  top: 29%;
+  left: 60.4%;
+  top: 27%;
 
   width: 11.8%;
   height: 42%;
 }
 
-
-/* =========================
-   PETS
-========================= */
-
+/* PETS */
 .pets-hotspot {
-  left: 77.4%;
-  top: 29%;
+  left: 74.2%;
+  top: 27%;
 
   width: 11.8%;
   height: 42%;
 }
 
-
-/* =========================
-   STAIRS
-========================= */
-
+/* STAIRS */
 .stairs-hotspot {
-  left: 91.4%;
-  top: 24%;
+  left: 89.6%;
+  top: 22%;
 
   width: 6.8%;
   height: 48%;
