@@ -127,7 +127,7 @@ img {
 }
 
 .panorama-image {
-  height: 125%;
+  height: 100%;
   width: auto;
   max-width: none;
   display: block;
@@ -135,7 +135,7 @@ img {
   user-select: none;
 
   position: relative;
-  top: -12.5%;
+  top:  0;
 }
 
 .panorama-fade {
