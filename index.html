@@ -18,7 +18,7 @@
     rel="stylesheet"
   >
 
-  <link rel="stylesheet" href="styles.css?v=25" />
+  <link rel="stylesheet" href="styles.css?v=30" />
 </head>
 
 <body>
@@ -47,82 +47,76 @@
         aria-label="Draggable mall panorama"
       >
 
-        <!-- PANORAMA + HOTSPOTS -->
         <div class="panorama-track" id="panoramaTrack">
 
-          <img
-            id="panoramaImage"
-            class="panorama-image"
-            src="./vizimall-panorama.png"
-            alt="Vizimall panoramic shopping mall interior"
-            draggable="false"
-          />
+          <div class="panorama-canvas">
+
+            <img
+              id="panoramaImage"
+              class="panorama-image"
+              src="./vizimall-panorama.png"
+              alt="Vizimall panoramic shopping mall interior"
+              draggable="false"
+            />
 
 
-          <!-- HOME -->
-          <button
-            class="store-hotspot home-hotspot"
-            data-store="HOME & LIVING"
-            aria-label="Enter Home and Living">
-          </button>
+            <button
+              class="store-hotspot home-hotspot"
+              data-store="HOME & LIVING"
+              aria-label="Home and Living">
+            </button>
 
 
-          <!-- BEAUTY -->
-          <button
-            class="store-hotspot beauty-hotspot"
-            data-store="BEAUTY & CARE"
-            aria-label="Enter Beauty and Care">
-          </button>
+            <button
+              class="store-hotspot beauty-hotspot"
+              data-store="BEAUTY & CARE"
+              aria-label="Beauty and Care">
+            </button>
 
 
-          <!-- TECH -->
-          <button
-            class="store-hotspot tech-hotspot"
-            data-store="TECH & GADGETS"
-            aria-label="Enter Tech and Gadgets">
-          </button>
+            <button
+              class="store-hotspot tech-hotspot"
+              data-store="TECH & GADGETS"
+              aria-label="Tech and Gadgets">
+            </button>
 
 
-          <!-- TRAVEL -->
-          <button
-            class="store-hotspot travel-hotspot"
-            data-store="TRAVEL & EXPLORE"
-            aria-label="Enter Travel and Explore">
-          </button>
+            <button
+              class="store-hotspot travel-hotspot"
+              data-store="TRAVEL & EXPLORE"
+              aria-label="Travel and Explore">
+            </button>
 
 
-          <!-- AUTO -->
-          <button
-            class="store-hotspot auto-hotspot"
-            data-store="AUTO ESSENTIALS"
-            aria-label="Enter Auto Essentials">
-          </button>
+            <button
+              class="store-hotspot auto-hotspot"
+              data-store="AUTO ESSENTIALS"
+              aria-label="Auto Essentials">
+            </button>
 
 
-          <!-- PETS -->
-          <button
-            class="store-hotspot pets-hotspot"
-            data-store="PETS & FRIENDS"
-            aria-label="Enter Pets and Friends">
-          </button>
+            <button
+              class="store-hotspot pets-hotspot"
+              data-store="PETS & FRIENDS"
+              aria-label="Pets and Friends">
+            </button>
 
 
-          <!-- STAIRS -->
-          <button
-            class="store-hotspot stairs-hotspot"
-            data-store="UPSTAIRS"
-            aria-label="Explore upstairs">
-          </button>
+            <button
+              class="store-hotspot stairs-hotspot"
+              data-store="UPSTAIRS"
+              aria-label="Upstairs">
+            </button>
+
+          </div>
 
         </div>
 
 
-        <!-- SIDE FADES -->
         <div class="panorama-fade panorama-fade-left"></div>
         <div class="panorama-fade panorama-fade-right"></div>
 
 
-        <!-- STORE NAME INDICATOR -->
         <div class="store-indicator" id="storeIndicator">
           <span id="storeIndicatorText">Explore VIZIMALL</span>
         </div>
@@ -130,7 +124,6 @@
       </div>
 
 
-      <!-- DRAG INFO -->
       <div class="drag-hint">
         <span>←</span>
         <span>Drag / Swipe to explore</span>
@@ -138,7 +131,6 @@
       </div>
 
 
-      <!-- PROGRESS -->
       <div class="panorama-progress">
         <div
           class="panorama-progress-bar"
@@ -151,7 +143,7 @@
   </main>
 
 
-  <script src="script.js?v=25"></script>
+  <script src="script.js?v=30"></script>
 
 </body>
 </html>
