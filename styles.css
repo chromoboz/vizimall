@@ -7,7 +7,6 @@
   --panel: rgba(8, 10, 12, 0.74);
 }
 
-
 /* =========================
    RESET
 ========================= */
@@ -20,7 +19,6 @@ html,
 body {
   width: 100%;
   height: 100%;
-
   margin: 0;
   padding: 0;
 
@@ -45,7 +43,7 @@ img {
 
 
 /* =========================
-   TOP BAR
+   HEADER
 ========================= */
 
 .topbar {
@@ -64,7 +62,6 @@ img {
   justify-content: center;
 
   background: rgba(7, 9, 11, 0.86);
-
   border-bottom: 1px solid var(--line);
 
   backdrop-filter: blur(16px);
@@ -89,7 +86,6 @@ img {
   margin-top: 5px;
 
   font-size: 7px;
-
   letter-spacing: 4px;
 
   color: var(--gold);
@@ -156,7 +152,6 @@ img {
   font-family: "Cormorant Garamond", serif;
 
   font-size: clamp(44px, 6vw, 90px);
-
   font-weight: 500;
 
   line-height: 0.95;
@@ -217,8 +212,6 @@ img {
 
 /* =========================
    PANORAMA CANVAS
-   IMAGE + HOTSPOTS SHARE
-   THE SAME COORDINATES
 ========================= */
 
 .panorama-canvas {
@@ -245,7 +238,6 @@ img {
   max-width: none;
 
   pointer-events: none;
-
   user-select: none;
 }
 
@@ -291,7 +283,7 @@ img {
 
 
 /* =========================
-   HOTSPOTS
+   HOTSPOT BASE
 ========================= */
 
 .store-hotspot {
@@ -312,90 +304,110 @@ img {
 }
 
 
-/* HOME */
+/* =========================
+   HOME
+========================= */
+
 .home-hotspot {
-  left: 1.7%;
-  top: 23%;
+  left: 3.2%;
+  top: 29%;
 
-  width: 14.2%;
-  height: 55%;
-}
-
-
-/* BEAUTY */
-.beauty-hotspot {
-  left: 18%;
-  top: 23%;
-
-  width: 13.7%;
-  height: 55%;
-}
-
-
-/* TECH */
-.tech-hotspot {
-  left: 33.5%;
-  top: 23%;
-
-  width: 13.7%;
-  height: 55%;
-}
-
-
-/* TRAVEL */
-.travel-hotspot {
-  left: 48.4%;
-  top: 23%;
-
-  width: 13.5%;
-  height: 55%;
-}
-
-
-/* AUTO */
-.auto-hotspot {
-  left: 63%;
-  top: 23%;
-
-  width: 13.2%;
-  height: 55%;
-}
-
-
-/* PETS */
-.pets-hotspot {
-  left: 77.5%;
-  top: 23%;
-
-  width: 12.6%;
-  height: 55%;
-}
-
-
-/* STAIRS */
-.stairs-hotspot {
-  left: 91%;
-  top: 17%;
-
-  width: 8%;
-  height: 62%;
+  width: 11.8%;
+  height: 42%;
 }
 
 
 /* =========================
-   HOTSPOT HOVER
-   TEMPORARY DEBUG VIEW
+   BEAUTY
+========================= */
+
+.beauty-hotspot {
+  left: 19.1%;
+  top: 29%;
+
+  width: 11.8%;
+  height: 42%;
+}
+
+
+/* =========================
+   TECH
+========================= */
+
+.tech-hotspot {
+  left: 34.6%;
+  top: 29%;
+
+  width: 11.8%;
+  height: 42%;
+}
+
+
+/* =========================
+   TRAVEL
+========================= */
+
+.travel-hotspot {
+  left: 49.3%;
+  top: 29%;
+
+  width: 11.8%;
+  height: 42%;
+}
+
+
+/* =========================
+   AUTO
+========================= */
+
+.auto-hotspot {
+  left: 63.2%;
+  top: 29%;
+
+  width: 11.8%;
+  height: 42%;
+}
+
+
+/* =========================
+   PETS
+========================= */
+
+.pets-hotspot {
+  left: 77.4%;
+  top: 29%;
+
+  width: 11.8%;
+  height: 42%;
+}
+
+
+/* =========================
+   STAIRS
+========================= */
+
+.stairs-hotspot {
+  left: 91.4%;
+  top: 24%;
+
+  width: 6.8%;
+  height: 48%;
+}
+
+
+/* =========================
+   HOTSPOT HOVER DEBUG
 ========================= */
 
 @media (hover: hover) {
 
   .store-hotspot:hover {
     background:
-      rgba(255, 255, 255, 0.02);
+      rgba(255, 255, 255, 0.012);
 
     box-shadow:
-      inset 0 0 0 2px
-      rgba(215, 181, 109, 0.75);
+      inset 0 0 0 1px
+      rgba(215, 181, 109, 0.9);
   }
 
 }
@@ -433,7 +445,6 @@ img {
   color: white;
 
   font-size: 11px;
-
   font-weight: 600;
 
   letter-spacing: 2px;
@@ -489,7 +500,6 @@ img {
   color: rgba(255, 255, 255, 0.82);
 
   font-size: 11px;
-
   letter-spacing: 1.5px;
 
   text-transform: uppercase;
@@ -519,8 +529,7 @@ img {
 
   border-radius: 999px;
 
-  background:
-    rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.10);
 
   pointer-events: none;
 }
@@ -533,8 +542,7 @@ img {
 
   background: var(--gold);
 
-  transition:
-    width 0.12s linear;
+  transition: width 0.12s linear;
 }
 
 
@@ -554,34 +562,26 @@ img {
 
   .brand-main {
     font-size: 18px;
-
     letter-spacing: 5px;
   }
 
   .brand-sub {
     font-size: 6px;
-
     letter-spacing: 2px;
   }
 
-
-  /* hide intro on mobile */
   .intro-copy {
     display: none;
   }
 
-
-  /* mobile panorama scale */
   .panorama-canvas {
     height: 100%;
     top: 0;
   }
 
-
   .panorama-fade {
     width: 42px;
   }
-
 
   .drag-hint {
     bottom: 20px;
@@ -593,14 +593,11 @@ img {
     font-size: 10px;
   }
 
-
   .panorama-progress {
     bottom: 72px;
 
-    width:
-      min(260px, 72vw);
+    width: min(260px, 72vw);
   }
-
 
   .store-indicator {
     bottom: 108px;
@@ -614,8 +611,6 @@ img {
     font-size: 10px;
   }
 
-
-  /* mobile hotspots invisible */
   .store-hotspot,
   .store-hotspot:hover,
   .store-hotspot:focus,
