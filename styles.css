@@ -133,7 +133,7 @@ a {
       rgba(5,7,9,.18) 42%,
       rgba(5,7,9,.74) 100%
     ),
-    url("images/vizimall-atrium.jpg") center center / cover no-repeat;
+    url("vizimall-atrium.jpg") center center / cover no-repeat;
   transform: scale(1.015);
 }
 
