@@ -631,3 +631,55 @@ img {
   }
 
 }
+/* =========================
+   FINAL HOTSPOT POSITIONS
+========================= */
+
+.home-hotspot {
+  left: 3.5% !important;
+  width: 12.5% !important;
+  top: 21% !important;
+  height: 58% !important;
+}
+
+.beauty-hotspot {
+  left: 19.5% !important;
+  width: 12.5% !important;
+  top: 21% !important;
+  height: 58% !important;
+}
+
+.tech-hotspot {
+  left: 35% !important;
+  width: 12% !important;
+  top: 21% !important;
+  height: 58% !important;
+}
+
+.travel-hotspot {
+  left: 49.5% !important;
+  width: 12% !important;
+  top: 21% !important;
+  height: 58% !important;
+}
+
+.auto-hotspot {
+  left: 60.5% !important;
+  width: 13% !important;
+  top: 20% !important;
+  height: 60% !important;
+}
+
+.pets-hotspot {
+  left: 74% !important;
+  width: 13% !important;
+  top: 20% !important;
+  height: 60% !important;
+}
+
+.stairs-hotspot {
+  left: 88% !important;
+  width: 12% !important;
+  top: 16% !important;
+  height: 66% !important;
+}
