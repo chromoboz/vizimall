@@ -2,10 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+
   <meta
     name="viewport"
     content="width=device-width, initial-scale=1.0, viewport-fit=cover"
   />
+
   <title>VIZIMALL</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -16,8 +18,9 @@
     rel="stylesheet"
   >
 
- <link rel="stylesheet" href="styles.css?v=12" />
+  <link rel="stylesheet" href="styles.css?v=13" />
 </head>
+
 <body>
 
   <header class="topbar">
@@ -26,6 +29,7 @@
       <span class="brand-sub">A WORLD TO EXPLORE</span>
     </div>
   </header>
+
 
   <main class="page-shell">
 
@@ -36,54 +40,118 @@
         <p>Drag the mall left and right to explore.</p>
       </div>
 
+
       <div
         class="panorama-viewport"
         id="panoramaViewport"
         aria-label="Draggable mall panorama"
       >
-        <button
-    class="store-hotspot auto-hotspot"
-    data-store="AUTO ESSENTIALS"
-    aria-label="Enter Auto Essentials">
-  </button>
 
-  <button
-    class="store-hotspot pets-hotspot"
-    data-store="PETS & FRIENDS"
-    aria-label="Enter Pets and Friends">
-  </button>
+        <!-- PANORAMA + HOTSPOTS -->
+        <div class="panorama-track" id="panoramaTrack">
 
-  <button
-    class="store-hotspot stairs-hotspot"
-    data-store="UPSTAIRS"
-    aria-label="Explore upstairs">
-  </button>
+          <img
+            id="panoramaImage"
+            class="panorama-image"
+            src="./vizimall-panorama.png"
+            alt="Vizimall panoramic shopping mall interior"
+            draggable="false"
+          />
 
-</div>
 
+          <!-- HOME -->
+          <button
+            class="store-hotspot home-hotspot"
+            data-store="HOME & LIVING"
+            aria-label="Enter Home and Living">
+          </button>
+
+
+          <!-- BEAUTY -->
+          <button
+            class="store-hotspot beauty-hotspot"
+            data-store="BEAUTY & CARE"
+            aria-label="Enter Beauty and Care">
+          </button>
+
+
+          <!-- TECH -->
+          <button
+            class="store-hotspot tech-hotspot"
+            data-store="TECH & GADGETS"
+            aria-label="Enter Tech and Gadgets">
+          </button>
+
+
+          <!-- TRAVEL -->
+          <button
+            class="store-hotspot travel-hotspot"
+            data-store="TRAVEL & EXPLORE"
+            aria-label="Enter Travel and Explore">
+          </button>
+
+
+          <!-- AUTO -->
+          <button
+            class="store-hotspot auto-hotspot"
+            data-store="AUTO ESSENTIALS"
+            aria-label="Enter Auto Essentials">
+          </button>
+
+
+          <!-- PETS -->
+          <button
+            class="store-hotspot pets-hotspot"
+            data-store="PETS & FRIENDS"
+            aria-label="Enter Pets and Friends">
+          </button>
+
+
+          <!-- STAIRS -->
+          <button
+            class="store-hotspot stairs-hotspot"
+            data-store="UPSTAIRS"
+            aria-label="Explore upstairs">
+          </button>
+
+        </div>
+
+
+        <!-- SIDE FADES -->
         <div class="panorama-fade panorama-fade-left"></div>
-<div class="panorama-fade panorama-fade-right"></div>
+        <div class="panorama-fade panorama-fade-right"></div>
 
-<div class="store-indicator" id="storeIndicator">
-  <span id="storeIndicatorText">Explore VIZIMALL</span>
-</div>
 
-</div>
+        <!-- STORE NAME INDICATOR -->
+        <div class="store-indicator" id="storeIndicator">
+          <span id="storeIndicatorText">Explore VIZIMALL</span>
+        </div>
 
+      </div>
+
+
+      <!-- DRAG INFO -->
       <div class="drag-hint">
         <span>←</span>
         <span>Drag / Swipe to explore</span>
         <span>→</span>
       </div>
 
+
+      <!-- PROGRESS -->
       <div class="panorama-progress">
-        <div class="panorama-progress-bar" id="progressBar"></div>
+        <div
+          class="panorama-progress-bar"
+          id="progressBar">
+        </div>
       </div>
 
     </section>
 
   </main>
 
-  <script src="script.js?v=12"></script>
+
+  <script src="script.js?v=13"></script>
+
 </body>
 </html>
