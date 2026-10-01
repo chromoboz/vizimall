@@ -19,6 +19,7 @@ html,
 body {
   width: 100%;
   height: 100%;
+
   margin: 0;
   padding: 0;
 
@@ -37,13 +38,13 @@ body {
 }
 
 img {
-  -webkit-user-drag: none;
   user-select: none;
+  -webkit-user-drag: none;
 }
 
 
 /* =========================
-   TOP BAR
+   HEADER
 ========================= */
 
 .topbar {
@@ -53,9 +54,9 @@ img {
   left: 0;
   right: 0;
 
-  z-index: 1000;
-
   height: 72px;
+
+  z-index: 1000;
 
   display: flex;
   align-items: center;
@@ -128,7 +129,7 @@ img {
 
 
 /* =========================
-   INTRO
+   INTRO TEXT
 ========================= */
 
 .intro-copy {
@@ -154,7 +155,6 @@ img {
   font-family: "Cormorant Garamond", serif;
 
   font-size: clamp(44px, 6vw, 90px);
-
   font-weight: 500;
 
   line-height: 0.95;
@@ -173,7 +173,7 @@ img {
 
 
 /* =========================
-   PANORAMA
+   PANORAMA VIEWPORT
 ========================= */
 
 .panorama-viewport {
@@ -196,11 +196,16 @@ img {
   cursor: grabbing;
 }
 
+
+/* =========================
+   PANORAMA TRACK
+========================= */
+
 .panorama-track {
   position: absolute;
 
-  left: 0;
   top: 0;
+  left: 0;
 
   height: 100%;
 
@@ -209,6 +214,11 @@ img {
 
   will-change: transform;
 }
+
+
+/* =========================
+   PANORAMA IMAGE
+========================= */
 
 .panorama-image {
   position: relative;
@@ -228,7 +238,7 @@ img {
 
 
 /* =========================
-   SIDE FADES
+   EDGE SHADOWS
 ========================= */
 
 .panorama-fade {
@@ -298,7 +308,6 @@ img {
   color: rgba(255, 255, 255, 0.82);
 
   font-size: 11px;
-
   letter-spacing: 1.5px;
 
   text-transform: uppercase;
@@ -308,7 +317,7 @@ img {
 
 
 /* =========================
-   PROGRESS
+   PROGRESS BAR
 ========================= */
 
 .panorama-progress {
@@ -354,9 +363,6 @@ img {
 
   z-index: 25;
 
-  top: 20%;
-  height: 60%;
-
   margin: 0;
   padding: 0;
 
@@ -370,68 +376,112 @@ img {
 }
 
 
-/* HOME */
+/* =========================
+   HOME
+========================= */
+
 .home-hotspot {
-  left: 2.5%;
-  width: 15%;
-}
+  left: 2.4%;
+  width: 14.4%;
 
-
-/* BEAUTY */
-.beauty-hotspot {
-  left: 18.5%;
-  width: 14.5%;
-}
-
-
-/* TECH */
-.tech-hotspot {
-  left: 34%;
-  width: 14%;
-}
-
-
-/* TRAVEL */
-.travel-hotspot {
-  left: 48.5%;
-  width: 14%;
-}
-
-
-/* AUTO */
-.auto-hotspot {
-  left: 60.5%;
-  width: 13%;
-}
-
-
-/* PETS */
-.pets-hotspot {
-  left: 74%;
-  width: 13%;
-}
-
-
-/* STAIRS */
-.stairs-hotspot {
-  left: 88%;
-  width: 12%;
+  top: 20.5%;
+  height: 59%;
 }
 
 
 /* =========================
-   HOTSPOT HOVER
+   BEAUTY
+========================= */
+
+.beauty-hotspot {
+  left: 18.8%;
+  width: 13.5%;
+
+  top: 20%;
+  height: 59.5%;
+}
+
+
+/* =========================
+   TECH
+========================= */
+
+.tech-hotspot {
+  left: 34.1%;
+  width: 13.4%;
+
+  top: 20%;
+  height: 59.5%;
+}
+
+
+/* =========================
+   TRAVEL
+========================= */
+
+.travel-hotspot {
+  left: 48.6%;
+  width: 13.2%;
+
+  top: 20%;
+  height: 59.5%;
+}
+
+
+/* =========================
+   AUTO
+   bunu bozmadım
+========================= */
+
+.auto-hotspot {
+  left: 60.5%;
+  width: 13%;
+
+  top: 20%;
+  height: 60%;
+}
+
+
+/* =========================
+   PETS
+   bunu bozmadım
+========================= */
+
+.pets-hotspot {
+  left: 74%;
+  width: 13%;
+
+  top: 20%;
+  height: 60%;
+}
+
+
+/* =========================
+   STAIRS
+========================= */
+
+.stairs-hotspot {
+  left: 88%;
+  width: 12%;
+
+  top: 16%;
+  height: 66%;
+}
+
+
+/* =========================
+   HOTSPOT DEBUG HOVER
 ========================= */
 
 @media (hover: hover) {
 
   .store-hotspot:hover {
     background:
-      rgba(255, 255, 255, 0.025);
+      rgba(255, 255, 255, 0.018);
 
     box-shadow:
-      inset 0 0 0 2px
-      rgba(215, 181, 109, 0.60);
+      inset 0 0 0 1.5px
+      rgba(215, 181, 109, 0.65);
   }
 
 }
@@ -469,7 +519,6 @@ img {
   color: white;
 
   font-size: 11px;
-
   font-weight: 600;
 
   letter-spacing: 2px;
@@ -519,13 +568,13 @@ img {
   }
 
 
-  /* telefonda üst yazı yok */
+  /* Telefonda intro görünmesin */
   .intro-copy {
     display: none;
   }
 
 
-  /* telefonda zoom azalt */
+  /* Mobil panorama zoom */
   .panorama-image {
     height: 100%;
     top: 0;
@@ -551,8 +600,7 @@ img {
   .panorama-progress {
     bottom: 72px;
 
-    width:
-      min(260px, 72vw);
+    width: min(260px, 72vw);
   }
 
 
@@ -569,14 +617,16 @@ img {
   }
 
 
-  /* telefonda hotspot görünmez */
+  /* Telefonda hotspot alanları tamamen görünmez */
   .store-hotspot,
   .store-hotspot:hover,
   .store-hotspot:focus,
   .store-hotspot:active {
     background: transparent !important;
+
     border: 0 !important;
-    outline: none !important;
+    outline: 0 !important;
+
     box-shadow: none !important;
   }
 
