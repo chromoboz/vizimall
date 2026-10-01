@@ -103,11 +103,14 @@ viewport.addEventListener(
 );
 
 viewport.addEventListener(
-  "touchend",
-  () => {
-    pointerUp();
+  "touchmove",
+  (e) => {
+    if (e.touches.length !== 1) return;
+
+    e.preventDefault();
+    pointerMove(e.touches[0].clientX);
   },
-  { passive: true }
+  { passive: false }
 );
 
 viewport.addEventListener("mouseleave", () => {
