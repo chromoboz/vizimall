@@ -138,3 +138,22 @@ if (image.complete) {
     setTranslate(initialX);
   }
 }
+ const storeName = hotspot.dataset.store;
+
+    clearTimeout(indicatorTimer);
+
+    if (storeName === "UPSTAIRS") {
+      storeIndicatorText.textContent = "UPSTAIRS · COMING SOON";
+    } else {
+      storeIndicatorText.textContent = storeName;
+    }
+
+    storeIndicator.classList.add("show");
+
+    indicatorTimer = setTimeout(() => {
+      storeIndicator.classList.remove("show");
+    }, 1800);
+
+  });
+
+});
