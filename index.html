@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VIZIMALL</title>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background: #0b0d0f;
+      color: white;
+      overflow-x: hidden;
+    }
+
+    button,
+    a {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* HEADER */
+    .topbar {
+      height: 76px;
+      background: rgba(8, 10, 12, 0.96);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 5%;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      backdrop-filter: blur(16px);
+    }
+
+    .brand {
+      font-size: 30px;
+      letter-spacing: 8px;
+      font-weight: 700;
+      color: white;
+    }
+
+    .brand span {
+      color: #d7b56d;
+    }
+
+    .nav {
+      display: flex;
+      gap: 28px;
+      align-items: center;
+    }
+
+    .nav a {
+      color: #ddd;
+      text-decoration: none;
+      font-size: 14px;
+      transition: .25s;
+    }
+
+    .nav a:hover {
+      color: #d7b56d;
+    }
+
+    .bag-btn {
+      background: transparent;
+      color: white;
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 50px;
+      padding: 11px 17px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    /* HERO / MALL */
+    .mall {
+      min-height: 100vh;
+      padding-top: 76px;
+      position: relative;
+      display: flex;
+      align-items: stretch;
+      background:
+        radial-gradient(circle at center, rgba(255,220,150,.13), transparent 34%),
+        linear-gradient(to bottom, #172028 0%, #0f151a 52%, #090c0e 100%);
+    }
+
+    .mall::before {
+      content: "";
+      position: absolute;
+      inset: 76px 0 0;
+      background:
+        linear-gradient(90deg,
+          rgba(255,190,90,.04),
+          transparent 20%,
+          transparent 80%,
+          rgba(255,190,90,.04)
+        );
+      pointer-events: none;
+    }
+
+    .mall-world {
+      width: 100%;
+      min-height: calc(100vh - 76px);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* ceiling */
+    .ceiling {
+      position: absolute;
+      top: 0;
+      left: 8%;
+      width: 84%;
+      height: 38%;
+      border-radius: 0 0 48% 48%;
+      border: 1px solid rgba(255,255,255,.09);
+      background:
+        repeating-linear-gradient(
+          90deg,
+          transparent 0 90px,
+          rgba(255,255,255,.06) 91px 93px
+        ),
+        linear-gradient(
+          to bottom,
+          rgba(109,148,171,.18),
+          rgba(255,255,255,.02)
+        );
+      opacity: .75;
+    }
+
+    /* floor */
+    .floor {
+      position: absolute;
+      left: -10%;
+      right: -10%;
+      bottom: -15%;
+      height: 62%;
+      transform: perspective(500px) rotateX(58deg);
+      transform-origin: bottom;
+      background:
+        repeating-linear-gradient(
+          90deg,
+          rgba(255,255,255,.025) 0 1px,
+          transparent 1px 110px
+        ),
+        repeating-linear-gradient(
+          0deg,
+          rgba(255,255,255,.035) 0 1px,
+          transparent 1px 80px
+        ),
+        linear-gradient(#30383c, #15191c);
+      border-top: 1px solid rgba(255,255,255,.09);
+    }
+
+    /* intro */
+    .intro {
+      position: absolute;
+      top: 10%;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 30;
+      width: min(720px, 86%);
+      text-align: center;
+    }
+
+    .eyebrow {
+      font-size: 11px;
+      letter-spacing: 5px;
+      color: #d7b56d;
+      margin-bottom: 14px;
+    }
+
+    .intro h1 {
+      font-family: Georgia, serif;
+      font-size: clamp(42px, 6vw, 82px);
+      font-weight: 400;
+      line-height: .95;
+      text-shadow: 0 8px 30px rgba(0,0,0,.45);
+    }
+
+    .intro p {
+      margin: 18px auto 0;
+      color: rgba(255,255,255,.74);
+      max-width: 560px;
+      line-height: 1.6;
+      font-size: 15px;
+    }
+
+    /* STORES */
+    .store {
+      position: absolute;
+      width: 27%;
+      height: 37%;
+      min-height: 220px;
+      border: 1px solid rgba(255,255,255,.12);
+      overflow: hidden;
+      cursor: pointer;
+      z-index: 20;
+      background: #111;
+      box-shadow: 0 30px 60px rgba(0,0,0,.4);
+      transition: transform .45s ease, filter .45s ease;
+    }
+
+    .store:hover {
+      transform: scale(1.025);
+      filter: brightness(1.12);
+    }
+
+    .store::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(to top, rgba(0,0,0,.58), transparent 60%),
+        radial-gradient(circle at center, rgba(255,220,160,.16), transparent 58%);
+    }
+
+    .store::after {
+      content: "";
+      position: absolute;
+      left: 6%;
+      right: 6%;
+      bottom: 0;
+      height: 58%;
+      border: 1px solid rgba(255,255,255,.12);
+      background:
+        linear-gradient(
+          90deg,
+          rgba(255,255,255,.025),
+          rgba(255,220,150,.07),
+          rgba(255,255,255,.02)
+        );
+    }
+
+    .store-name {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: 13px 14px;
+      background: rgba(3,4,5,.92);
+      font-size: clamp(12px, 1.35vw, 20px);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      z-index: 5;
+      text-align: center;
+    }
+
+    .store-sub {
+      position: absolute;
+      bottom: 18px;
+      left: 22px;
+      z-index: 6;
+      font-size: 12px;
+      letter-spacing: 1.5px;
+      color: rgba(255,255,255,.72);
+    }
+
+    .store-1 {
+      left: 2%;
+      top: 35%;
+      transform: perspective(800px) rotateY(8deg);
+      background:
+        linear-gradient(135deg, #51402e, #16100c);
+    }
+
+    .store-2 {
+      left: 30%;
+      top: 42%;
+      width: 20%;
+      height: 30%;
+      background:
+        linear-gradient(135deg, #203242, #060b10);
+    }
+
+    .store-3 {
+      right: 2%;
+      top: 35%;
+      transform: perspective(800px) rotateY(-8deg);
+      background:
+        linear-gradient(135deg, #4a3428, #130d09);
+    }
+
+    .store-4 {
+      right: 30%;
+      top: 42%;
+      width: 20%;
+      height: 30%;
+      background:
+        linear-gradient(135deg, #573f5b, #160d18);
+    }
+
+    .store-5 {
+      left: 11%;
+      top: 70%;
+      width: 23%;
+      height: 27%;
+      background:
+        linear-gradient(135deg, #3d3038, #120d10);
+    }
+
+    .store-6 {
+      right: 11%;
+      top: 70%;
+      width: 23%;
+      height: 27%;
+      background:
+        linear-gradient(135deg, #3e482f, #101409);
+    }
+
+    .center-logo {
+      position: absolute;
+      left: 50%;
+      bottom: 13%;
+      transform: translateX(-50%);
+      z-index: 25;
+      text-align: center;
+      background: rgba(9,11,13,.72);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 100px;
+      padding: 15px 28px;
+      backdrop-filter: blur(8px);
+    }
+
+    .center-logo strong {
+      letter-spacing: 5px;
+    }
+
+    .center-logo small {
+      display: block;
+      margin-top: 6px;
+      color: #d7b56d;
+      letter-spacing: 2px;
+      font-size: 9px;
+    }
+
+    /* store overlay */
+    .store-page {
+      position: fixed;
+      inset: 0;
+      background: #0c0f12;
+      z-index: 2000;
+      display: none;
+      overflow-y: auto;
+      animation: enterStore .5s ease;
+    }
+
+    .store-page.active {
+      display: block;
+    }
+
+    @keyframes enterStore {
+      from {
+        opacity: 0;
+        transform: scale(1.08);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    .store-header {
+      height: 82px;
+      padding: 0 5%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255,255,255,.1);
+      position: sticky;
+      top: 0;
+      background: rgba(12,15,18,.94);
+      backdrop-filter: blur(12px);
+      z-index: 10;
+    }
+
+    .back-btn {
+      border: 1px solid rgba(255,255,255,.15);
+      background: transparent;
+      color: white;
+      border-radius: 50px;
+      padding: 10px 16px;
+      cursor: pointer;
+    }
+
+    .store-hero {
+      padding: 70px 7% 50px;
+      text-align: center;
+      background:
+        radial-gradient(circle at center, rgba(215,181,109,.16), transparent 35%),
+        linear-gradient(#151b20, #0c0f12);
+    }
+
+    .store-hero h2 {
+      font-family: Georgia, serif;
+      font-size: clamp(42px, 6vw, 80px);
+      font-weight: 400;
+    }
+
+    .store-hero p {
+      max-width: 580px;
+      margin: 14px auto 0;
+      color: rgba(255,255,255,.68);
+      line-height: 1.6;
+    }
+
+    .products {
+      padding: 30px 5% 80px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 18px;
+    }
+
+    .product {
+      background: #161a1e;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 18px;
+      min-height: 280px;
+      overflow: hidden;
+    }
+
+    .product-img {
+      height: 190px;
+      background:
+        radial-gradient(circle at 50% 40%, rgba(215,181,109,.2), transparent 42%),
+        #20262b;
+    }
+
+    .product-info {
+      padding: 17px;
+    }
+
+    .product-info h3 {
+      font-size: 15px;
+      margin-bottom: 8px;
+    }
+
+    .product-info p {
+      color: #d7b56d;
+      font-weight: bold;
+    }
+
+    /* MOBILE */
+    @media (max-width: 800px) {
+      .topbar {
+        height: 66px;
+        padding: 0 16px;
+      }
+
+      .brand {
+        font-size: 21px;
+        letter-spacing: 5px;
+      }
+
+      .nav {
+        display: none;
+      }
+
+      .bag-btn {
+        padding: 9px 13px;
+        font-size: 12px;
+      }
+
+      .mall {
+        padding-top: 66px;
+      }
+
+      .mall-world {
+        min-height: 920px;
+      }
+
+      .ceiling {
+        top: 2%;
+        left: 3%;
+        width: 94%;
+        height: 27%;
+      }
+
+      .intro {
+        top: 6%;
+        width: 92%;
+      }
+
+      .intro h1 {
+        font-size: 42px;
+      }
+
+      .intro p {
+        font-size: 13px;
+        max-width: 330px;
+      }
+
+      .store {
+        width: 43%;
+        height: 195px;
+        min-height: 195px;
+      }
+
+      .store-1 {
+        left: 4%;
+        top: 33%;
+        transform: none;
+      }
+
+      .store-2 {
+        right: 4%;
+        left: auto;
+        top: 33%;
+        width: 43%;
+        height: 195px;
+      }
+
+      .store-3 {
+        left: 4%;
+        right: auto;
+        top: 55%;
+        transform: none;
+      }
+
+      .store-4 {
+        right: 4%;
+        left: auto;
+        top: 55%;
+        width: 43%;
+        height: 195px;
+      }
+
+      .store-5 {
+        left: 4%;
+        top: 77%;
+        width: 43%;
+        height: 195px;
+      }
+
+      .store-6 {
+        right: 4%;
+        top: 77%;
+        width: 43%;
+        height: 195px;
+      }
+
+      .center-logo {
+        display: none;
+      }
+
+      .floor {
+        opacity: .55;
+      }
+
+      .products {
+        grid-template-columns: repeat(2, 1fr);
+        padding: 20px 16px 60px;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .products {
+        grid-template-columns: 1fr;
+      }
+
+      .store-name {
+        font-size: 11px;
+        letter-spacing: 1px;
+      }
+
+      .store-sub {
+        left: 12px;
+        bottom: 12px;
+        font-size: 9px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+<header class="topbar">
+  <div class="brand">VIZI<span>MALL</span></div>
+
+  <nav class="nav">
+    <a href="#">Mall</a>
+    <a href="#">Stores</a>
+    <a href="#">New In</a>
+    <a href="#">About</a>
+  </nav>
+
+  <button class="bag-btn">Bag · 0</button>
+</header>
+
+<main class="mall">
+  <div class="mall-world">
+
+    <div class="ceiling"></div>
+    <div class="floor"></div>
+
+    <section class="intro">
+      <div class="eyebrow">THE GRAND ATRIUM</div>
+      <h1>Walk in.<br>Look around.</h1>
+      <p>
+        Welcome to VIZIMALL — a digital shopping mall built to feel
+        like somewhere you can actually explore.
+      </p>
+    </section>
+
+    <div class="store store-1" onclick="openStore('Home & Living')">
+      <div class="store-name">Home & Living</div>
+      <div class="store-sub">ENTER STORE →</div>
+    </div>
+
+    <div class="store store-2" onclick="openStore('Tech & Gadgets')">
+      <div class="store-name">Tech & Gadgets</div>
+      <div class="store-sub">ENTER STORE →</div>
+    </div>
+
+    <div class="store store-3" onclick="openStore('Auto Essentials')">
+      <div class="store-name">Auto Essentials</div>
+      <div class="store-sub">ENTER STORE →</div>
+    </div>
+
+    <div class="store store-4" onclick="openStore('Travel & Explore')">
+      <div class="store-name">Travel & Explore</div>
+      <div class="store-sub">ENTER STORE →</div>
+    </div>
+
+    <div class="store store-5" onclick="openStore('Beauty & Care')">
+      <div class="store-name">Beauty & Care</div>
+      <div class="store-sub">ENTER STORE →</div>
+    </div>
+
+    <div class="store store-6" onclick="openStore('Pets & Friends')">
+      <div class="store-name">Pets & Friends</div>
+      <div class="store-sub">ENTER STORE →</div>
+    </div>
+
+    <div class="center-logo">
+      <strong>VIZIMALL</strong>
+      <small>A WORLD TO EXPLORE</small>
+    </div>
+
+  </div>
+</main>
+
+<section id="storePage" class="store-page">
+  <div class="store-header">
+    <div class="brand">VIZI<span>MALL</span></div>
+    <button class="back-btn" onclick="closeStore()">← Back to Mall</button>
+  </div>
+
+  <div class="store-hero">
+    <div class="eyebrow">YOU'VE ENTERED</div>
+    <h2 id="storeTitle">Store</h2>
+    <p>
+      Explore hand-picked products inside this VIZIMALL store.
+      Real products and Shopify checkout will be connected later.
+    </p>
+  </div>
+
+  <div class="products">
+    <div class="product">
+      <div class="product-img"></div>
+      <div class="product-info">
+        <h3>Sample Product One</h3>
+        <p>€29.90</p>
+      </div>
+    </div>
+
+    <div class="product">
+      <div class="product-img"></div>
+      <div class="product-info">
+        <h3>Sample Product Two</h3>
+        <p>€39.90</p>
+      </div>
+    </div>
+
+    <div class="product">
+      <div class="product-img"></div>
+      <div class="product-info">
+        <h3>Sample Product Three</h3>
+        <p>€24.90</p>
+      </div>
+    </div>
+
+    <div class="product">
+      <div class="product-img"></div>
+      <div class="product-info">
+        <h3>Sample Product Four</h3>
+        <p>€49.90</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  function openStore(storeName) {
+    document.getElementById("storeTitle").textContent = storeName;
+    document.getElementById("storePage").classList.add("active");
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeStore() {
+    document.getElementById("storePage").classList.remove("active");
+    document.body.style.overflow = "";
+  }
+
+  document.addEventListener("keydown", function(event) {
+    if (event.key === "Escape") {
+      closeStore();
+    }
+  });
+</script>
+
+</body>
+</html>
