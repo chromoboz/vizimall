@@ -325,7 +325,7 @@ a {
     rotateY(8deg);
   background:
     linear-gradient(135deg, rgba(70,48,30,.85), rgba(22,14,10,.85)),
-    url("images/store-home.jpg") center / cover no-repeat;
+    url("store-home.jpg") center / cover no-repeat;
 }
 
 .storefront-tech {
@@ -335,7 +335,7 @@ a {
   top: 43%;
   background:
     linear-gradient(135deg, rgba(20,44,64,.82), rgba(7,13,18,.86)),
-    url("images/store-tech.jpg") center / cover no-repeat;
+    url("store-tech.jpg") center / cover no-repeat;
 }
 
 .storefront-auto {
@@ -348,7 +348,7 @@ a {
     rotateY(-8deg);
   background:
     linear-gradient(135deg, rgba(65,38,27,.84), rgba(18,11,8,.86)),
-    url("images/store-auto.jpg") center / cover no-repeat;
+    url("store-auto.jpg") center / cover no-repeat;
 }
 
 .storefront-travel {
@@ -358,7 +358,7 @@ a {
   top: 43%;
   background:
     linear-gradient(135deg, rgba(64,40,72,.80), rgba(22,12,26,.88)),
-    url("images/store-travel.jpg") center / cover no-repeat;
+    url("store-travel.jpg") center / cover no-repeat;
 }
 
 .storefront-beauty {
@@ -368,7 +368,7 @@ a {
   bottom: 1.6%;
   background:
     linear-gradient(135deg, rgba(78,48,60,.84), rgba(22,13,17,.89)),
-    url("images/store-beauty.jpg") center / cover no-repeat;
+    url("store-beauty.jpg") center / cover no-repeat;
 }
 
 .storefront-pets {
@@ -378,7 +378,7 @@ a {
   bottom: 1.6%;
   background:
     linear-gradient(135deg, rgba(57,69,40,.84), rgba(16,20,11,.90)),
-    url("images/store-pets.jpg") center / cover no-repeat;
+    url("store-pets.jpg") center / cover no-repeat;
 }
 
 .storefront.active-store {
