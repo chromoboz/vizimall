@@ -173,7 +173,7 @@ img {
 
 
 /* =========================
-   PANORAMA VIEW
+   PANORAMA
 ========================= */
 
 .panorama-viewport {
@@ -196,11 +196,6 @@ img {
   cursor: grabbing;
 }
 
-
-/* =========================
-   PANORAMA TRACK
-========================= */
-
 .panorama-track {
   position: absolute;
 
@@ -215,11 +210,6 @@ img {
   will-change: transform;
 }
 
-
-/* =========================
-   PANORAMA IMAGE
-========================= */
-
 .panorama-image {
   position: relative;
 
@@ -233,7 +223,6 @@ img {
   display: block;
 
   pointer-events: none;
-
   user-select: none;
 }
 
@@ -365,9 +354,8 @@ img {
 
   z-index: 25;
 
-  top: 18%;
-
-  height: 64%;
+  top: 20%;
+  height: 60%;
 
   margin: 0;
   padding: 0;
@@ -384,50 +372,50 @@ img {
 
 /* HOME */
 .home-hotspot {
-  left: 2%;
-  width: 16%;
+  left: 2.5%;
+  width: 15%;
 }
 
 
 /* BEAUTY */
 .beauty-hotspot {
   left: 18.5%;
-  width: 15%;
+  width: 14.5%;
 }
 
 
 /* TECH */
 .tech-hotspot {
   left: 34%;
-  width: 14.5%;
+  width: 14%;
 }
 
 
 /* TRAVEL */
 .travel-hotspot {
   left: 48.5%;
-  width: 14.5%;
+  width: 14%;
 }
 
 
 /* AUTO */
 .auto-hotspot {
-  left: 63%;
-  width: 14.5%;
+  left: 60.5%;
+  width: 13%;
 }
 
 
 /* PETS */
 .pets-hotspot {
-  left: 77.5%;
+  left: 74%;
   width: 13%;
 }
 
 
 /* STAIRS */
 .stairs-hotspot {
-  left: 91%;
-  width: 9%;
+  left: 88%;
+  width: 12%;
 }
 
 
@@ -438,7 +426,8 @@ img {
 @media (hover: hover) {
 
   .store-hotspot:hover {
-    background: rgba(255, 255, 255, 0.025);
+    background:
+      rgba(255, 255, 255, 0.025);
 
     box-shadow:
       inset 0 0 0 2px
@@ -530,13 +519,13 @@ img {
   }
 
 
-  /* telefonda yazıyı gizliyoruz */
+  /* telefonda üst yazı yok */
   .intro-copy {
     display: none;
   }
 
 
-  /* telefonda daha az zoom */
+  /* telefonda zoom azalt */
   .panorama-image {
     height: 100%;
     top: 0;
@@ -580,7 +569,7 @@ img {
   }
 
 
-  /* Telefonda hotspot tamamen görünmez */
+  /* telefonda hotspot görünmez */
   .store-hotspot,
   .store-hotspot:hover,
   .store-hotspot:focus,
