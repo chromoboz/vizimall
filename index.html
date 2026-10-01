@@ -1,19 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
 
   <meta
     name="viewport"
     content="width=device-width, initial-scale=1.0, viewport-fit=cover"
-  >
+  />
+
+  <title>VIZIMALL — A World to Explore</title>
 
   <meta
     name="description"
-    content="VIZIMALL — Explore a new kind of online shopping mall."
-  >
-
-  <title>VIZIMALL — Explore the Mall</title>
+    content="VIZIMALL — step inside a digital shopping mall and explore six unique stores."
+  />
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -28,51 +28,55 @@
 
 <body>
 
-  <!-- =========================
-       HEADER
-  ========================== -->
+  <!-- TOP BAR -->
+  <header class="topbar">
 
-  <header class="site-header">
+    <button
+      class="menu-btn"
+      id="menuBtn"
+      type="button"
+      aria-label="Open mall directory"
+    >
+      ☰
+    </button>
 
-    <a class="logo" href="#" aria-label="VIZIMALL home">
-      <span class="logo-vizi">VIZI</span><span class="logo-mall">MALL</span>
+    <a href="#" class="brand">
+      <span class="brand-main">VIZIMALL</span>
+      <span class="brand-sub">A WORLD TO EXPLORE</span>
     </a>
 
-    <nav class="desktop-nav">
-      <a href="#mall">Mall</a>
-      <a href="#directory">Directory</a>
-      <a href="#about">About</a>
-    </nav>
-
-    <button class="bag-button" id="bagButton" type="button">
+    <button
+      class="bag-btn"
+      id="bagBtn"
+      type="button"
+    >
       <span>Bag</span>
-      <span class="bag-count" id="bagCount">0</span>
+      <span id="bagCount">0</span>
     </button>
 
   </header>
 
 
-  <!-- =========================
-       MAIN MALL
-  ========================== -->
+  <!-- MAIN MALL -->
+  <main class="mall-shell">
 
-  <main id="mall" class="mall">
+    <section
+      class="mall-viewport"
+      id="mallViewport"
+    >
 
-    <section class="mall-stage">
+      <!-- cinematic mall background -->
+      <div class="mall-scene"></div>
 
-      <!-- Mall background -->
-      <div class="mall-background"></div>
-
-      <!-- Atmosphere layers -->
-      <div class="mall-glow mall-glow-left"></div>
-      <div class="mall-glow mall-glow-right"></div>
-      <div class="mall-vignette"></div>
+      <div class="mall-overlay"></div>
+      <div class="mall-light mall-light-left"></div>
+      <div class="mall-light mall-light-right"></div>
 
 
-      <!-- Intro -->
-      <div class="mall-intro">
+      <!-- intro -->
+      <div class="intro-copy">
 
-        <p class="mall-kicker">
+        <p class="eyebrow">
           THE GRAND ATRIUM · GROUND FLOOR
         </p>
 
@@ -80,217 +84,110 @@
           Take a little wander.
         </h1>
 
-        <p class="mall-intro-text">
-          Six stores. One digital mall.<br>
-          Step inside and explore.
+        <p class="intro-text">
+          Six stores. A whole world to explore.
         </p>
 
       </div>
 
 
-      <!-- =========================
-           STORE 01
-      ========================== -->
-
-      <button
-        class="storefront storefront-home"
-        data-store="home"
-        data-index="1"
-        type="button"
+      <!-- STORES -->
+      <div
+        class="store-zone"
+        id="storeZone"
       >
 
-        <span class="storefront-sign">
-          HOME & LIVING
-        </span>
-
-        <span class="storefront-window">
-          <span class="storefront-number">01</span>
-
-          <span class="storefront-copy">
-            Calm spaces.<br>
-            Smarter living.
+        <button
+          class="store-card store-home"
+          data-store="home"
+          data-index="0"
+          type="button"
+        >
+          <span class="store-label">
+            HOME & LIVING
           </span>
-        </span>
-
-        <span class="storefront-enter">
-          Enter store →
-        </span>
-
-      </button>
+        </button>
 
 
-      <!-- =========================
-           STORE 02
-      ========================== -->
-
-      <button
-        class="storefront storefront-tech"
-        data-store="tech"
-        data-index="2"
-        type="button"
-      >
-
-        <span class="storefront-sign">
-          TECH & GADGETS
-        </span>
-
-        <span class="storefront-window">
-          <span class="storefront-number">02</span>
-
-          <span class="storefront-copy">
-            Useful technology.<br>
-            Everyday upgrades.
+        <button
+          class="store-card store-tech"
+          data-store="tech"
+          data-index="1"
+          type="button"
+        >
+          <span class="store-label">
+            TECH & GADGETS
           </span>
-        </span>
-
-        <span class="storefront-enter">
-          Enter store →
-        </span>
-
-      </button>
+        </button>
 
 
-      <!-- =========================
-           STORE 03
-      ========================== -->
-
-      <button
-        class="storefront storefront-auto"
-        data-store="auto"
-        data-index="3"
-        type="button"
-      >
-
-        <span class="storefront-sign">
-          AUTO ESSENTIALS
-        </span>
-
-        <span class="storefront-window">
-          <span class="storefront-number">03</span>
-
-          <span class="storefront-copy">
-            Better drives.<br>
-            Smarter accessories.
+        <button
+          class="store-card store-auto"
+          data-store="auto"
+          data-index="2"
+          type="button"
+        >
+          <span class="store-label">
+            AUTO ESSENTIALS
           </span>
-        </span>
-
-        <span class="storefront-enter">
-          Enter store →
-        </span>
-
-      </button>
+        </button>
 
 
-      <!-- =========================
-           STORE 04
-      ========================== -->
-
-      <button
-        class="storefront storefront-travel"
-        data-store="travel"
-        data-index="4"
-        type="button"
-      >
-
-        <span class="storefront-sign">
-          TRAVEL & EXPLORE
-        </span>
-
-        <span class="storefront-window">
-          <span class="storefront-number">04</span>
-
-          <span class="storefront-copy">
-            Pack lighter.<br>
-            Go further.
+        <button
+          class="store-card store-travel"
+          data-store="travel"
+          data-index="3"
+          type="button"
+        >
+          <span class="store-label">
+            TRAVEL & EXPLORE
           </span>
-        </span>
-
-        <span class="storefront-enter">
-          Enter store →
-        </span>
-
-      </button>
+        </button>
 
 
-      <!-- =========================
-           STORE 05
-      ========================== -->
-
-      <button
-        class="storefront storefront-beauty"
-        data-store="beauty"
-        data-index="5"
-        type="button"
-      >
-
-        <span class="storefront-sign">
-          BEAUTY & CARE
-        </span>
-
-        <span class="storefront-window">
-          <span class="storefront-number">05</span>
-
-          <span class="storefront-copy">
-            Simple rituals.<br>
-            Everyday care.
+        <button
+          class="store-card store-beauty"
+          data-store="beauty"
+          data-index="4"
+          type="button"
+        >
+          <span class="store-label">
+            BEAUTY & CARE
           </span>
-        </span>
-
-        <span class="storefront-enter">
-          Enter store →
-        </span>
-
-      </button>
+        </button>
 
 
-      <!-- =========================
-           STORE 06
-      ========================== -->
-
-      <button
-        class="storefront storefront-pets"
-        data-store="pets"
-        data-index="6"
-        type="button"
-      >
-
-        <span class="storefront-sign">
-          PETS & FRIENDS
-        </span>
-
-        <span class="storefront-window">
-          <span class="storefront-number">06</span>
-
-          <span class="storefront-copy">
-            Small comforts.<br>
-            Happier companions.
+        <button
+          class="store-card store-pets"
+          data-store="pets"
+          data-index="5"
+          type="button"
+        >
+          <span class="store-label">
+            PETS & FRIENDS
           </span>
-        </span>
+        </button>
 
-        <span class="storefront-enter">
-          Enter store →
-        </span>
-
-      </button>
+      </div>
 
 
-      <!-- Current store indicator -->
+      <!-- current position -->
       <aside class="near-panel">
 
-        <span class="near-label">
+        <span class="near-kicker">
           YOU'RE NEAR
         </span>
 
-        <div class="near-row">
+        <div class="near-main">
 
-          <span class="near-number">
-            <span id="currentStoreNumber">04</span>
+          <span class="near-index">
+            <strong id="currentNumber">04</strong>
             <small>/ 06</small>
           </span>
 
           <span
-            class="near-store-name"
-            id="currentStoreName"
+            class="near-name"
+            id="currentName"
           >
             Travel & Explore
           </span>
@@ -304,27 +201,27 @@
       </aside>
 
 
-      <!-- Desktop arrows -->
-      <div class="mall-controls">
+      <!-- desktop arrows -->
+      <div class="browse-controls">
 
         <button
-          id="prevStore"
-          class="mall-arrow"
+          class="browse-arrow"
+          id="prevBtn"
           type="button"
-          aria-label="Explore previous store"
+          aria-label="Previous store"
         >
           ←
         </button>
 
-        <span class="mall-control-copy">
+        <span>
           Explore the atrium
         </span>
 
         <button
-          id="nextStore"
-          class="mall-arrow"
+          class="browse-arrow"
+          id="nextBtn"
           type="button"
-          aria-label="Explore next store"
+          aria-label="Next store"
         >
           →
         </button>
@@ -332,8 +229,8 @@
       </div>
 
 
-      <!-- Mobile hint -->
-      <div class="mobile-swipe-hint">
+      <!-- mobile -->
+      <div class="swipe-hint">
         <span>←</span>
         Swipe to look around
         <span>→</span>
@@ -342,235 +239,320 @@
     </section>
 
 
-    <!-- =========================
-         DIRECTORY
-    ========================== -->
-
+    <!-- DIRECTORY -->
     <section
+      class="directory-section"
       id="directory"
-      class="directory"
     >
 
-      <div class="section-heading">
+      <div class="directory-heading">
 
-        <p class="section-kicker">
+        <p class="eyebrow">
           DIRECTORY
         </p>
 
         <h2>
-          Choose where to wander.
+          Where would you like to go?
         </h2>
 
       </div>
 
 
-      <div class="directory-list">
+      <div class="directory-grid">
 
-        <button data-directory-store="home">
+        <button
+          class="directory-item"
+          data-directory="home"
+          type="button"
+        >
           <span>01</span>
-          Home & Living
+          <strong>Home & Living</strong>
           <b>→</b>
         </button>
 
-        <button data-directory-store="tech">
+
+        <button
+          class="directory-item"
+          data-directory="tech"
+          type="button"
+        >
           <span>02</span>
-          Tech & Gadgets
+          <strong>Tech & Gadgets</strong>
           <b>→</b>
         </button>
 
-        <button data-directory-store="auto">
+
+        <button
+          class="directory-item"
+          data-directory="auto"
+          type="button"
+        >
           <span>03</span>
-          Auto Essentials
+          <strong>Auto Essentials</strong>
           <b>→</b>
         </button>
 
-        <button data-directory-store="travel">
+
+        <button
+          class="directory-item"
+          data-directory="travel"
+          type="button"
+        >
           <span>04</span>
-          Travel & Explore
+          <strong>Travel & Explore</strong>
           <b>→</b>
         </button>
 
-        <button data-directory-store="beauty">
+
+        <button
+          class="directory-item"
+          data-directory="beauty"
+          type="button"
+        >
           <span>05</span>
-          Beauty & Care
+          <strong>Beauty & Care</strong>
           <b>→</b>
         </button>
 
-        <button data-directory-store="pets">
+
+        <button
+          class="directory-item"
+          data-directory="pets"
+          type="button"
+        >
           <span>06</span>
-          Pets & Friends
+          <strong>Pets & Friends</strong>
           <b>→</b>
         </button>
 
       </div>
-
-    </section>
-
-
-    <!-- =========================
-         ABOUT
-    ========================== -->
-
-    <section
-      id="about"
-      class="about"
-    >
-
-      <p class="section-kicker">
-        VIZIMALL
-      </p>
-
-      <h2>
-        Shopping should feel like exploring.
-      </h2>
-
-      <p>
-        VIZIMALL brings different stores together inside one digital
-        shopping destination. Browse the mall, step inside a store and
-        discover products at your own pace.
-      </p>
 
     </section>
 
   </main>
 
 
-  <!-- =========================
-       STORE VIEW
-  ========================== -->
-
+  <!-- STORE INTERIOR -->
   <section
     class="store-view"
     id="storeView"
     aria-hidden="true"
   >
 
-    <header class="store-view-header">
+    <div class="store-view-top">
 
       <button
-        class="back-to-mall"
-        id="backToMall"
+        id="backBtn"
+        class="back-btn"
         type="button"
       >
         ← Back to mall
       </button>
 
-      <span class="store-view-logo">
+      <div class="store-view-brand">
         VIZIMALL
-      </span>
+      </div>
 
       <button
         class="store-view-bag"
         type="button"
       >
-        Bag · <span id="storeBagCount">0</span>
+        Bag · <span id="insideBagCount">0</span>
       </button>
 
-    </header>
+    </div>
 
 
-    <div class="store-view-hero">
+    <div
+      class="store-interior-hero"
+      id="storeInteriorHero"
+    >
 
-      <p class="store-view-kicker">
-        YOU'VE ENTERED
-      </p>
+      <div class="store-interior-overlay"></div>
 
-      <h2 id="storeViewTitle">
-        Travel & Explore
-      </h2>
+      <div class="store-interior-copy">
 
-      <p id="storeViewDescription">
-        Products designed for easier journeys and better adventures.
-      </p>
+        <p class="eyebrow">
+          YOU'VE ENTERED
+        </p>
+
+        <h2 id="storeTitle">
+          Travel & Explore
+        </h2>
+
+        <p id="storeDescription">
+          Pack lighter. Go further.
+        </p>
+
+      </div>
 
     </div>
 
 
-    <div class="product-grid">
+    <section class="products-section">
 
-      <article class="product-card">
+      <div class="products-heading">
 
-        <div class="product-image product-placeholder"></div>
+        <p class="eyebrow">
+          CURATED FOR YOU
+        </p>
 
-        <div class="product-content">
+        <h3>
+          Discover the store
+        </h3>
 
-          <p class="product-label">
-            NEW
-          </p>
-
-          <h3>
-            Sample Product
-          </h3>
-
-          <p class="product-price">
-            €29.90
-          </p>
-
-          <button type="button">
-            View product
-          </button>
-
-        </div>
-
-      </article>
+      </div>
 
 
-      <article class="product-card">
+      <div
+        class="products-grid"
+        id="productsGrid"
+      >
 
-        <div class="product-image product-placeholder"></div>
+        <article class="product-card">
 
-        <div class="product-content">
+          <div class="product-image"></div>
 
-          <p class="product-label">
-            VIZIMALL PICK
-          </p>
+          <div class="product-body">
 
-          <h3>
-            Sample Product
-          </h3>
+            <span class="product-tag">
+              NEW
+            </span>
 
-          <p class="product-price">
-            €39.90
-          </p>
+            <h4>
+              Sample Product
+            </h4>
 
-          <button type="button">
-            View product
-          </button>
+            <p>
+              €29.90
+            </p>
 
-        </div>
+            <button type="button">
+              View product
+            </button>
 
-      </article>
+          </div>
+
+        </article>
 
 
-      <article class="product-card">
+        <article class="product-card">
 
-        <div class="product-image product-placeholder"></div>
+          <div class="product-image"></div>
 
-        <div class="product-content">
+          <div class="product-body">
 
-          <p class="product-label">
-            POPULAR
-          </p>
+            <span class="product-tag">
+              VIZIMALL PICK
+            </span>
 
-          <h3>
-            Sample Product
-          </h3>
+            <h4>
+              Sample Product
+            </h4>
 
-          <p class="product-price">
-            €24.90
-          </p>
+            <p>
+              €39.90
+            </p>
 
-          <button type="button">
-            View product
-          </button>
+            <button type="button">
+              View product
+            </button>
 
-        </div>
+          </div>
 
-      </article>
+        </article>
 
-    </div>
+
+        <article class="product-card">
+
+          <div class="product-image"></div>
+
+          <div class="product-body">
+
+            <span class="product-tag">
+              POPULAR
+            </span>
+
+            <h4>
+              Sample Product
+            </h4>
+
+            <p>
+              €24.90
+            </p>
+
+            <button type="button">
+              View product
+            </button>
+
+          </div>
+
+        </article>
+
+      </div>
+
+    </section>
 
   </section>
+
+
+  <!-- DIRECTORY DRAWER -->
+  <aside
+    class="drawer"
+    id="drawer"
+  >
+
+    <div class="drawer-top">
+
+      <span>
+        MALL DIRECTORY
+      </span>
+
+      <button
+        id="closeDrawer"
+        type="button"
+      >
+        ×
+      </button>
+
+    </div>
+
+
+    <nav class="drawer-links">
+
+      <button data-drawer-store="home">
+        Home & Living
+      </button>
+
+      <button data-drawer-store="tech">
+        Tech & Gadgets
+      </button>
+
+      <button data-drawer-store="auto">
+        Auto Essentials
+      </button>
+
+      <button data-drawer-store="travel">
+        Travel & Explore
+      </button>
+
+      <button data-drawer-store="beauty">
+        Beauty & Care
+      </button>
+
+      <button data-drawer-store="pets">
+        Pets & Friends
+      </button>
+
+    </nav>
+
+  </aside>
+
+
+  <div
+    class="drawer-backdrop"
+    id="drawerBackdrop"
+  ></div>
 
 
   <script src="script.js"></script>
