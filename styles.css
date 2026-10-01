@@ -7,6 +7,7 @@
   --panel: rgba(8, 10, 12, 0.74);
 }
 
+
 /* =========================
    RESET
 ========================= */
@@ -44,7 +45,7 @@ img {
 
 
 /* =========================
-   HEADER
+   TOP BAR
 ========================= */
 
 .topbar {
@@ -129,7 +130,7 @@ img {
 
 
 /* =========================
-   INTRO TEXT
+   INTRO
 ========================= */
 
 .intro-copy {
@@ -155,6 +156,7 @@ img {
   font-family: "Cormorant Garamond", serif;
 
   font-size: clamp(44px, 6vw, 90px);
+
   font-weight: 500;
 
   line-height: 0.95;
@@ -209,10 +211,24 @@ img {
 
   height: 100%;
 
-  display: flex;
-  align-items: stretch;
-
   will-change: transform;
+}
+
+
+/* =========================
+   PANORAMA CANVAS
+   IMAGE + HOTSPOTS SHARE
+   THE SAME COORDINATES
+========================= */
+
+.panorama-canvas {
+  position: relative;
+
+  display: inline-block;
+
+  height: 140%;
+
+  top: -20%;
 }
 
 
@@ -221,24 +237,21 @@ img {
 ========================= */
 
 .panorama-image {
-  position: relative;
+  display: block;
 
-  height: 140%;
+  height: 100%;
   width: auto;
 
   max-width: none;
 
-  top: -20%;
-
-  display: block;
-
   pointer-events: none;
+
   user-select: none;
 }
 
 
 /* =========================
-   EDGE SHADOWS
+   SIDE FADES
 ========================= */
 
 .panorama-fade {
@@ -278,84 +291,7 @@ img {
 
 
 /* =========================
-   DRAG HINT
-========================= */
-
-.drag-hint {
-  position: absolute;
-
-  left: 50%;
-  bottom: 28px;
-
-  transform: translateX(-50%);
-
-  z-index: 40;
-
-  display: flex;
-  align-items: center;
-
-  gap: 12px;
-
-  padding: 10px 16px;
-
-  border: 1px solid var(--line);
-  border-radius: 999px;
-
-  background: var(--panel);
-
-  backdrop-filter: blur(12px);
-
-  color: rgba(255, 255, 255, 0.82);
-
-  font-size: 11px;
-  letter-spacing: 1.5px;
-
-  text-transform: uppercase;
-
-  pointer-events: none;
-}
-
-
-/* =========================
-   PROGRESS BAR
-========================= */
-
-.panorama-progress {
-  position: absolute;
-
-  left: 50%;
-  bottom: 88px;
-
-  transform: translateX(-50%);
-
-  z-index: 40;
-
-  width: min(340px, 70vw);
-  height: 5px;
-
-  overflow: hidden;
-
-  border-radius: 999px;
-
-  background: rgba(255, 255, 255, 0.10);
-
-  pointer-events: none;
-}
-
-.panorama-progress-bar {
-  width: 20%;
-  height: 100%;
-
-  border-radius: 999px;
-
-  background: var(--gold);
-
-  transition: width 0.12s linear;
-}
-
-
-/* =========================
-   STORE HOTSPOTS
+   HOTSPOTS
 ========================= */
 
 .store-hotspot {
@@ -376,112 +312,90 @@ img {
 }
 
 
-/* =========================
-   HOME
-========================= */
-
+/* HOME */
 .home-hotspot {
-  left: 2.4%;
-  width: 14.4%;
+  left: 1.7%;
+  top: 23%;
 
-  top: 20.5%;
-  height: 59%;
+  width: 14.2%;
+  height: 55%;
 }
 
 
-/* =========================
-   BEAUTY
-========================= */
-
+/* BEAUTY */
 .beauty-hotspot {
-  left: 18.8%;
-  width: 13.5%;
+  left: 18%;
+  top: 23%;
 
-  top: 20%;
-  height: 59.5%;
+  width: 13.7%;
+  height: 55%;
 }
 
 
-/* =========================
-   TECH
-========================= */
-
+/* TECH */
 .tech-hotspot {
-  left: 34.1%;
-  width: 13.4%;
+  left: 33.5%;
+  top: 23%;
 
-  top: 20%;
-  height: 59.5%;
+  width: 13.7%;
+  height: 55%;
 }
 
 
-/* =========================
-   TRAVEL
-========================= */
-
+/* TRAVEL */
 .travel-hotspot {
-  left: 48.6%;
-  width: 13.2%;
+  left: 48.4%;
+  top: 23%;
 
-  top: 20%;
-  height: 59.5%;
+  width: 13.5%;
+  height: 55%;
 }
 
 
-/* =========================
-   AUTO
-   bunu bozmadım
-========================= */
-
+/* AUTO */
 .auto-hotspot {
-  left: 60.5%;
-  width: 13%;
+  left: 63%;
+  top: 23%;
 
-  top: 20%;
-  height: 60%;
+  width: 13.2%;
+  height: 55%;
 }
 
 
-/* =========================
-   PETS
-   bunu bozmadım
-========================= */
-
+/* PETS */
 .pets-hotspot {
-  left: 74%;
-  width: 13%;
+  left: 77.5%;
+  top: 23%;
 
-  top: 20%;
-  height: 60%;
+  width: 12.6%;
+  height: 55%;
 }
 
 
-/* =========================
-   STAIRS
-========================= */
-
+/* STAIRS */
 .stairs-hotspot {
-  left: 88%;
-  width: 12%;
+  left: 91%;
+  top: 17%;
 
-  top: 16%;
-  height: 66%;
+  width: 8%;
+  height: 62%;
 }
 
 
 /* =========================
-   HOTSPOT DEBUG HOVER
+   HOTSPOT HOVER
+   TEMPORARY DEBUG VIEW
 ========================= */
 
 @media (hover: hover) {
 
   .store-hotspot:hover {
     background:
-      rgba(255, 255, 255, 0.018);
+      rgba(255, 255, 255, 0.02);
 
     box-shadow:
-      inset 0 0 0 1.5px
-      rgba(215, 181, 109, 0.65);
+      inset 0 0 0 2px
+      rgba(215, 181, 109, 0.75);
   }
 
 }
@@ -519,6 +433,7 @@ img {
   color: white;
 
   font-size: 11px;
+
   font-weight: 600;
 
   letter-spacing: 2px;
@@ -544,6 +459,86 @@ img {
 
 
 /* =========================
+   DRAG HINT
+========================= */
+
+.drag-hint {
+  position: absolute;
+
+  left: 50%;
+  bottom: 28px;
+
+  transform: translateX(-50%);
+
+  z-index: 40;
+
+  display: flex;
+  align-items: center;
+
+  gap: 12px;
+
+  padding: 10px 16px;
+
+  border: 1px solid var(--line);
+  border-radius: 999px;
+
+  background: var(--panel);
+
+  backdrop-filter: blur(12px);
+
+  color: rgba(255, 255, 255, 0.82);
+
+  font-size: 11px;
+
+  letter-spacing: 1.5px;
+
+  text-transform: uppercase;
+
+  pointer-events: none;
+}
+
+
+/* =========================
+   PROGRESS
+========================= */
+
+.panorama-progress {
+  position: absolute;
+
+  left: 50%;
+  bottom: 88px;
+
+  transform: translateX(-50%);
+
+  z-index: 40;
+
+  width: min(340px, 70vw);
+  height: 5px;
+
+  overflow: hidden;
+
+  border-radius: 999px;
+
+  background:
+    rgba(255, 255, 255, 0.10);
+
+  pointer-events: none;
+}
+
+.panorama-progress-bar {
+  width: 20%;
+  height: 100%;
+
+  border-radius: 999px;
+
+  background: var(--gold);
+
+  transition:
+    width 0.12s linear;
+}
+
+
+/* =========================
    MOBILE
 ========================= */
 
@@ -559,23 +554,25 @@ img {
 
   .brand-main {
     font-size: 18px;
+
     letter-spacing: 5px;
   }
 
   .brand-sub {
     font-size: 6px;
+
     letter-spacing: 2px;
   }
 
 
-  /* Telefonda intro görünmesin */
+  /* hide intro on mobile */
   .intro-copy {
     display: none;
   }
 
 
-  /* Mobil panorama zoom */
-  .panorama-image {
+  /* mobile panorama scale */
+  .panorama-canvas {
     height: 100%;
     top: 0;
   }
@@ -600,7 +597,8 @@ img {
   .panorama-progress {
     bottom: 72px;
 
-    width: min(260px, 72vw);
+    width:
+      min(260px, 72vw);
   }
 
 
@@ -617,7 +615,7 @@ img {
   }
 
 
-  /* Telefonda hotspot alanları tamamen görünmez */
+  /* mobile hotspots invisible */
   .store-hotspot,
   .store-hotspot:hover,
   .store-hotspot:focus,
@@ -625,61 +623,9 @@ img {
     background: transparent !important;
 
     border: 0 !important;
-    outline: 0 !important;
+    outline: none !important;
 
     box-shadow: none !important;
   }
 
-}
-/* =========================
-   FINAL HOTSPOT POSITIONS
-========================= */
-
-.home-hotspot {
-  left: 3.5% !important;
-  width: 12.5% !important;
-  top: 21% !important;
-  height: 58% !important;
-}
-
-.beauty-hotspot {
-  left: 19.5% !important;
-  width: 12.5% !important;
-  top: 21% !important;
-  height: 58% !important;
-}
-
-.tech-hotspot {
-  left: 35% !important;
-  width: 12% !important;
-  top: 21% !important;
-  height: 58% !important;
-}
-
-.travel-hotspot {
-  left: 49.5% !important;
-  width: 12% !important;
-  top: 21% !important;
-  height: 58% !important;
-}
-
-.auto-hotspot {
-  left: 60.5% !important;
-  width: 13% !important;
-  top: 20% !important;
-  height: 60% !important;
-}
-
-.pets-hotspot {
-  left: 74% !important;
-  width: 13% !important;
-  top: 20% !important;
-  height: 60% !important;
-}
-
-.stairs-hotspot {
-  left: 88% !important;
-  width: 12% !important;
-  top: 16% !important;
-  height: 66% !important;
 }
