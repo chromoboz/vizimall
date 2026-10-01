@@ -295,3 +295,137 @@ body {
   touch-action: none;
   overscroll-behavior: none;
 }
+/* =========================
+   VIZIMALL STORE HOTSPOTS
+========================= */
+
+.panorama-track {
+  width: max-content;
+}
+
+/* Görünmez tıklama alanları */
+.store-hotspot {
+  position: absolute;
+  z-index: 20;
+
+  top: 25%;
+  height: 56%;
+
+  border: 0;
+  padding: 0;
+  margin: 0;
+
+  background: transparent;
+  cursor: pointer;
+
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* DÜKKAN KONUMları */
+
+.home-hotspot {
+  left: 5%;
+  width: 14%;
+}
+
+.beauty-hotspot {
+  left: 19%;
+  width: 14%;
+}
+
+.tech-hotspot {
+  left: 33%;
+  width: 14%;
+}
+
+.travel-hotspot {
+  left: 47%;
+  width: 15%;
+}
+
+.auto-hotspot {
+  left: 62%;
+  width: 14%;
+}
+
+.pets-hotspot {
+  left: 76%;
+  width: 14%;
+}
+
+.stairs-hotspot {
+  left: 90%;
+  width: 10%;
+}
+
+
+/* Mouse ile üstüne gelince çok hafif belli olsun */
+@media (hover: hover) {
+
+  .store-hotspot:hover {
+    background: rgba(255, 255, 255, 0.045);
+    box-shadow:
+      inset 0 0 0 1px rgba(215, 181, 109, 0.35),
+      inset 0 0 45px rgba(215, 181, 109, 0.06);
+  }
+
+}
+
+
+/* Tıklanınca aşağıda çıkan küçük bilgi */
+.store-indicator {
+  position: absolute;
+
+  left: 50%;
+  bottom: 118px;
+
+  transform: translateX(-50%) translateY(10px);
+
+  z-index: 100;
+
+  padding: 11px 18px;
+
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 999px;
+
+  background: rgba(8, 9, 11, 0.78);
+  backdrop-filter: blur(14px);
+
+  color: white;
+
+  font-size: 11px;
+  font-weight: 600;
+
+  letter-spacing: 2px;
+  text-transform: uppercase;
+
+  opacity: 0;
+
+  pointer-events: none;
+
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
+}
+
+.store-indicator.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+
+@media (max-width: 768px) {
+
+  .store-indicator {
+    bottom: 108px;
+
+    max-width: 82vw;
+
+    white-space: nowrap;
+
+    font-size: 10px;
+
+    padding: 10px 15px;
+  }
+
+}
