@@ -3,6 +3,10 @@ const track = document.getElementById("panoramaTrack");
 const image = document.getElementById("panoramaImage");
 const progressBar = document.getElementById("progressBar");
 
+const hotspots = document.querySelectorAll(".store-hotspot");
+const storeIndicator = document.getElementById("storeIndicator");
+const storeIndicatorText = document.getElementById("storeIndicatorText");
+
 let isDragging = false;
 let startPointerX = 0;
 let startTranslateX = 0;
@@ -10,13 +14,17 @@ let currentX = 0;
 let minX = 0;
 let maxX = 0;
 
+let indicatorTimer;
+
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
 function setTranslate(x) {
   currentX = clamp(x, minX, maxX);
+
   track.style.transform = `translate3d(${currentX}px, 0, 0)`;
+
   updateProgress();
 }
 
@@ -31,11 +39,13 @@ function updateBounds() {
 
   if (imageWidth <= viewportWidth) {
     const centered = (viewportWidth - imageWidth) / 2;
+
     minX = centered;
     maxX = centered;
   }
 
   currentX = clamp(currentX, minX, maxX);
+
   setTranslate(currentX);
 }
 
@@ -48,14 +58,18 @@ function updateProgress() {
   }
 
   const progress = Math.abs(currentX) / totalScrollable;
+
   const percent = 20 + progress * 80;
+
   progressBar.style.width = `${percent}%`;
 }
 
 function pointerDown(clientX) {
   isDragging = true;
+
   startPointerX = clientX;
   startTranslateX = currentX;
+
   viewport.classList.add("is-dragging");
 }
 
@@ -63,16 +77,24 @@ function pointerMove(clientX) {
   if (!isDragging) return;
 
   const delta = clientX - startPointerX;
+
   setTranslate(startTranslateX + delta);
 }
 
 function pointerUp() {
   isDragging = false;
+
   viewport.classList.remove("is-dragging");
 }
 
+
+/* =========================
+   MOUSE
+========================= */
+
 viewport.addEventListener("mousedown", (e) => {
   e.preventDefault();
+
   pointerDown(e.clientX);
 });
 
@@ -84,20 +106,23 @@ window.addEventListener("mouseup", () => {
   pointerUp();
 });
 
+viewport.addEventListener("mouseleave", () => {
+  if (isDragging) {
+    pointerUp();
+  }
+});
+
+
+/* =========================
+   TOUCH
+========================= */
+
 viewport.addEventListener(
   "touchstart",
   (e) => {
     if (e.touches.length !== 1) return;
-    pointerDown(e.touches[0].clientX);
-  },
-  { passive: true }
-);
 
-viewport.addEventListener(
-  "touchmove",
-  (e) => {
-    if (e.touches.length !== 1) return;
-    pointerMove(e.touches[0].clientX);
+    pointerDown(e.touches[0].clientX);
   },
   { passive: true }
 );
@@ -108,22 +133,31 @@ viewport.addEventListener(
     if (e.touches.length !== 1) return;
 
     e.preventDefault();
+
     pointerMove(e.touches[0].clientX);
   },
   { passive: false }
 );
 
-viewport.addEventListener("mouseleave", () => {
-  if (isDragging) {
+viewport.addEventListener(
+  "touchend",
+  () => {
     pointerUp();
-  }
-});
+  },
+  { passive: true }
+);
+
+
+/* =========================
+   IMAGE
+========================= */
 
 image.addEventListener("load", () => {
   updateBounds();
 
   if (minX < 0) {
     const initialX = minX * 0.15;
+
     setTranslate(initialX);
   }
 });
@@ -135,10 +169,26 @@ if (image.complete) {
 
   if (minX < 0) {
     const initialX = minX * 0.15;
+
     setTranslate(initialX);
   }
 }
- const storeName = hotspot.dataset.store;
+
+
+/* =========================
+   STORE HOTSPOTS
+========================= */
+
+hotspots.forEach((hotspot) => {
+  hotspot.addEventListener("click", () => {
+
+    const movement = Math.abs(currentX - startTranslateX);
+
+    if (movement > 8) {
+      return;
+    }
+
+    const storeName = hotspot.dataset.store;
 
     clearTimeout(indicatorTimer);
 
@@ -153,7 +203,5 @@ if (image.complete) {
     indicatorTimer = setTimeout(() => {
       storeIndicator.classList.remove("show");
     }, 1800);
-
   });
-
 });
