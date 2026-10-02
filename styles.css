@@ -624,4 +624,91 @@ img {
     font-size: 10px;
   }
 
+}/* Facade signs are attached to the panorama, not floating navigation. */
+ .facade-sign {
+  position:absolute;
+  transform:translate(-50%,-50%) skewY(var(--sign-angle,0deg));
+  width:11.3%;
+  text-align:center;
+  z-index:24;
+  pointer-events:none;
+  color:#f6deb0;
+  font-family:Inter,Arial,sans-serif;
+  text-shadow:0 1px 1px #000b,0 0 8px #e8bb6333;
 }
+.facade-sign strong {
+  display:block;
+  font-size:calc(var(--scene-unit,1px)*15.5);
+  line-height:1.2;
+  letter-spacing:calc(var(--scene-unit,1px)*1.55);
+  font-weight:500;
+  white-space:nowrap;
+}
+.facade-sign span {
+  display:block;
+  margin-top:calc(var(--scene-unit,1px)*6);
+  font-size:calc(var(--scene-unit,1px)*8);
+  line-height:1.2;
+  letter-spacing:calc(var(--scene-unit,1px)*.65);
+  color:#e2d3b8;
+  white-space:nowrap;
+}
+.store-hotspot:focus-visible {outline:2px solid var(--gold) !important;outline-offset:-4px;}
+a:focus-visible,.panorama-viewport:focus-visible {outline:2px solid var(--gold);outline-offset:4px;}
+body.is-entering .intro-copy,body.is-entering .drag-hint,body.is-entering .panorama-progress,body.is-entering .panorama-fade {opacity:0;transition:opacity .25s;}
+body.is-entering .panorama-track,body.is-entering .panorama-canvas {transition:transform 1150ms cubic-bezier(.22,.7,.25,1);}
+body.is-entering .panorama-viewport {pointer-events:none;}
+html:has(.shop-page) {height:auto;overflow:auto;background:#111;}
+.shop-page {position:relative;inset:auto;height:auto;min-height:100dvh;overflow-x:hidden;overflow-y:auto;background:#141310;}
+.shop-backdrop {position:fixed;inset:-14px;z-index:0;overflow:hidden;filter:blur(9px);}
+.shop-backdrop img {position:absolute;max-width:none;opacity:0;transition:opacity .3s;}
+.shop-backdrop img.ready {opacity:1;}
+.shop-shade {position:fixed;inset:0;z-index:1;background:linear-gradient(180deg,rgba(10,9,8,.3),rgba(10,9,8,.52));}
+.shop-header {position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:24px 4vw;border-bottom:1px solid #ffffff20;background:#0a09083d;}
+.mall-brand {font-weight:700;letter-spacing:5px;color:#fff;text-decoration:none;}
+.back-link {color:#f5e4c5;text-decoration:none;font-size:13px;}
+.shop-header-label {font-size:10px;letter-spacing:2px;color:#e8d6b5;}
+.shop-main {position:relative;z-index:2;max-width:1200px;padding:0 28px 60px;margin:auto;}
+.shop-welcome {text-align:center;padding:48px 0 32px;}
+.category-label {font-size:10px;font-weight:700;letter-spacing:3px;color:#f0d397;}
+.shop-welcome h1 {font-family:Georgia,serif;font-size:clamp(32px,4vw,58px);font-weight:400;margin:14px 0;line-height:1.1;}
+.shop-welcome>p:last-child {color:#ece5da;font-size:14px;line-height:1.6;}
+.product-panel {padding:30px;border:1px solid #ffffff66;border-radius:20px;background:rgba(250,247,241,.95);box-shadow:0 20px 70px #0003;color:#28251f;animation:shop-reveal .6s ease both;}
+.collection-heading {display:flex;justify-content:space-between;align-items:center;gap:16px;}
+.collection-heading h2 {margin:0;font-size:23px;font-weight:500;font-family:Georgia,serif;}
+.collection-heading>span {border:1px solid #d6c6a5;border-radius:20px;padding:7px 12px;font-size:10px;white-space:nowrap;color:#736044;}
+.collection-message {font-size:13px;color:#746e64;line-height:1.6;margin:12px 0 22px;}
+.product-grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px;}
+.product-placeholder {padding:12px;border:1px solid #dfd9ce;border-radius:12px;background:#fff8;}
+.product-placeholder div {aspect-ratio:1.25;background:linear-gradient(145deg,#e9e3d8,#f6f3ed);border-radius:7px;}
+.product-placeholder span,.product-placeholder i {display:block;background:#e5dfd4;border-radius:4px;height:8px;width:65%;margin:15px 0 0;}
+.product-placeholder i {width:30%;margin:10px 0;}
+@keyframes shop-reveal {from {opacity:0;transform:translateY(18px)} to {opacity:1;transform:translateY(0)}}
+@media(max-width:600px){.shop-header{padding:20px;}.shop-header-label{display:none}.mall-brand{font-size:16px;letter-spacing:3px}.shop-main{padding:0 16px 30px}.shop-welcome{padding:35px 0 22px}.product-panel{padding:20px}.product-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.product-placeholder:last-child{display:none}.collection-heading h2{font-size:20px;}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none !important;transition:none !important;scroll-behavior:auto !important;}}
+/* Keep the welcome copy clear of storefront signage. */
+.intro-copy {top:18px;width:90%;}
+.intro-copy h1 {font-size:clamp(26px,2.8vw,40px);line-height:1.1;}
+.intro-copy p {font-size:12px;margin-top:7px;}
+/* Quiet edges and a compact architectural brand mark. */
+.panorama-fade {width:32px;}
+.panorama-fade-left {background:linear-gradient(to right,rgba(8,9,11,.18),transparent);}
+.panorama-fade-right {background:linear-gradient(to left,rgba(8,9,11,.18),transparent);}
+.brand {flex-direction:row;gap:12px;}
+.brand-logo {display:block;width:43px;height:43px;}
+.brand-wordmark {display:flex;flex-direction:column;align-items:flex-start;}
+.brand-main {font-size:23px;letter-spacing:5px;font-weight:500;}
+.brand-sub {font-size:7px;letter-spacing:2.7px;margin-top:7px;}
+.panorama-canvas {transition:none;}
+@media(max-width:768px){.panorama-fade{width:18px;}.brand-logo{width:37px;height:37px;}.brand-main{font-size:20px;letter-spacing:4px}.brand-sub{font-size:6px;letter-spacing:2.2px}}
+/* Dotted wordmark */
+.brand-wordmark {align-items:center;}
+.brand-main {font-size:25px;letter-spacing:4px;font-weight:500;line-height:1.25;}
+.brand-dotted-i {position:relative;display:inline-block;}
+.brand-dotted-i::before {content:"";position:absolute;width:.13em;height:.13em;border-radius:50%;background:#d7b56d;top:-.08em;left:calc((100% - 4px) / 2);transform:translateX(-50%);}
+.mall-brand .brand-dotted-i::before {left:calc((100% - 5px) / 2);}
+@media(max-width:768px){.brand-main{font-size:22px;letter-spacing:4px;}.mall-brand .brand-dotted-i::before{left:calc((100% - 3px) / 2);}}
+.account-link {display:inline-flex;align-items:center;justify-content:center;gap:9px;min-width:44px;min-height:44px;padding:8px 13px;border:1px solid #d7b56d55;border-radius:7px;color:#efdbb6;text-decoration:none;font-size:12px;white-space:nowrap;transition:background .18s;}
+.account-link:hover {background:#d7b56d1a;}
+.topbar .account-link {position:absolute;right:24px;top:50%;transform:translateY(-50%);}
+@media(max-width:600px){.account-link span{display:none}.account-link{padding:10px}.topbar .account-link{right:12px}.shop-header{gap:12px}}
