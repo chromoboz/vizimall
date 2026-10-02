@@ -376,20 +376,6 @@ img {
    HOTSPOT HOVER DEBUG
 ========================= */
 
-@media (hover: hover) {
-
-  .store-hotspot:hover {
-    background:
-      rgba(255, 255, 255, 0.012);
-
-    box-shadow:
-      inset 0 0 0 1px
-      rgba(215, 181, 109, 0.9);
-  }
-
-}
-
-
 /* =========================
    STORE INDICATOR
 ========================= */
@@ -600,4 +586,13 @@ img {
     box-shadow: none !important;
   }
 
+}
+.store-hotspot,
+.store-hotspot:hover,
+.store-hotspot:focus,
+.store-hotspot:active {
+  background: transparent !important;
+  border: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
 }
