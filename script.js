@@ -8,7 +8,8 @@
   const label = document.getElementById('storeIndicatorText');
   let x = 0, min = 0, max = 0, pointer = null, dragged = false, timer, entering = false, entryTimer;
   const clamp = v => Math.max(min, Math.min(max, v));
-  let frame = 0, coast = 0, velocity = 0;
+  let frame = 0, coast = 0, velocity = 0, friction = 240;
+  let measuredWidth = 0, measuredHeight = 0, measuredCanvasWidth = 0;
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   function stopMotion() {
     cancelAnimationFrame(frame); cancelAnimationFrame(coast);
@@ -21,11 +22,12 @@
   function glide() {
     let previous = performance.now();
     function tick(now) {
-      const dt = Math.min(32, now - previous); previous = now;
-      const next = clamp(x + velocity * dt);
+      const dt = Math.min(64, now - previous); previous = now;
+      const decay = Math.exp(-dt / friction);
+      const next = clamp(x + velocity * friction * (1 - decay));
       const atEdge = next === x;
       x = next; paint();
-      velocity *= Math.exp(-dt / 240);
+      velocity *= decay;
       if (!atEdge && Math.abs(velocity) > .025 && !entering) coast = requestAnimationFrame(tick);
       else {coast = 0; velocity = 0;}
     }
@@ -36,9 +38,14 @@
     if (!frame) frame = requestAnimationFrame(paint);
   }
   function bounds(initial = false) {
+    if (entering) return;
+    const viewWidth = viewport.clientWidth, viewHeight = viewport.clientHeight;
+    const width = canvas.offsetWidth;
+    // Ignore observer notifications that do not change the scene geometry.
+    if (!initial && viewWidth === measuredWidth && viewHeight === measuredHeight && width === measuredCanvasWidth) return;
+    measuredWidth = viewWidth; measuredHeight = viewHeight; measuredCanvasWidth = width;
     stopMotion();
     const ratio = max === min ? .15 : (max-x)/(max-min);
-    const width = canvas.offsetWidth;
     canvas.style.setProperty("--scene-unit", `${canvas.offsetHeight/730}px`);
     if (entering) return;
     if (!width) return;
@@ -55,15 +62,18 @@
     // Prevent native button focus from panning the clipped viewport during a drag.
     e.preventDefault();
     dragged = false;
+    friction = e.pointerType === "touch" ? 420 : 240;
     pointer = {id:e.pointerId, start:e.clientX, startY:e.clientY, x, lastX:e.clientX, lastTime:performance.now()};
   });
   window.addEventListener('pointermove', e => {
     if (!pointer || pointer.id !== e.pointerId) return;
     const delta = e.clientX-pointer.start;
-    if (Math.hypot(delta,e.clientY-pointer.startY)>8) dragged = true;
-    if (dragged) {
-      if (!viewport.hasPointerCapture(e.pointerId)) viewport.setPointerCapture(e.pointerId);
+    if (!dragged && Math.hypot(delta,e.clientY-pointer.startY)>8) {
+      dragged = true;
+      viewport.setPointerCapture(e.pointerId);
       viewport.classList.add('is-dragging');
+    }
+    if (dragged) {
       const now = performance.now();
       const dt = Math.max(1, now - pointer.lastTime);
       const sample = Math.max(-2.5, Math.min(2.5, (e.clientX-pointer.lastX)/dt));
@@ -82,7 +92,11 @@
   }
   window.addEventListener('pointerup', end);
   window.addEventListener('pointercancel', end);
-  viewport.addEventListener('lostpointercapture', end);
+  // Touch starts with implicit capture on the tapped storefront button.
+  // Its capture-loss event bubbles when capture moves to the viewport.
+  viewport.addEventListener('lostpointercapture', e => {
+    if (e.target === viewport && !viewport.hasPointerCapture(e.pointerId)) end(e);
+  });
   window.addEventListener('blur', () => {end();stopMotion();});
   viewport.addEventListener('dragstart', e => e.preventDefault());
   viewport.addEventListener('click', e => {
