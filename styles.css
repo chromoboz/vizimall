@@ -661,3 +661,7 @@ img {
   }
 
 }
+.store-hotspot {
+  pointer-events: auto;
+  touch-action: none;
+}
