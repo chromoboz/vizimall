@@ -3,30 +3,53 @@ const track = document.getElementById("panoramaTrack");
 const image = document.getElementById("panoramaImage");
 const progressBar = document.getElementById("progressBar");
 
+const canvas = document.querySelector(".panorama-canvas");
+
 const hotspots = document.querySelectorAll(".store-hotspot");
+
 const storeIndicator = document.getElementById("storeIndicator");
 const storeIndicatorText = document.getElementById("storeIndicatorText");
 
 let isDragging = false;
+let isFocusing = false;
+
 let startPointerX = 0;
 let startTranslateX = 0;
 let currentX = 0;
+
 let minX = 0;
 let maxX = 0;
 
 let indicatorTimer;
+let zoomTimer;
+
+
+/* =========================
+   HELPERS
+========================= */
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+
+/* =========================
+   PANORAMA POSITION
+========================= */
+
 function setTranslate(x) {
   currentX = clamp(x, minX, maxX);
 
-  track.style.transform = `translate3d(${currentX}px, 0, 0)`;
+  track.style.transform =
+    `translate3d(${currentX}px, 0, 0)`;
 
   updateProgress();
 }
+
+
+/* =========================
+   BOUNDS
+========================= */
 
 function updateBounds() {
   const viewportWidth = viewport.clientWidth;
@@ -35,56 +58,96 @@ function updateBounds() {
   if (!imageWidth) return;
 
   maxX = 0;
-  minX = Math.min(0, viewportWidth - imageWidth);
+
+  minX = Math.min(
+    0,
+    viewportWidth - imageWidth
+  );
 
   if (imageWidth <= viewportWidth) {
-    const centered = (viewportWidth - imageWidth) / 2;
+    const centered =
+      (viewportWidth - imageWidth) / 2;
 
     minX = centered;
     maxX = centered;
   }
 
-  currentX = clamp(currentX, minX, maxX);
+  currentX = clamp(
+    currentX,
+    minX,
+    maxX
+  );
 
   setTranslate(currentX);
 }
 
+
+/* =========================
+   PROGRESS
+========================= */
+
 function updateProgress() {
-  const totalScrollable = Math.abs(minX);
+  const totalScrollable =
+    Math.abs(minX);
 
   if (totalScrollable <= 0) {
     progressBar.style.width = "100%";
     return;
   }
 
-  const progress = Math.abs(currentX) / totalScrollable;
+  const progress =
+    Math.abs(currentX) /
+    totalScrollable;
 
-  const percent = 20 + progress * 80;
+  const percent =
+    20 + progress * 80;
 
-  progressBar.style.width = `${percent}%`;
+  progressBar.style.width =
+    `${percent}%`;
 }
 
+
+/* =========================
+   DRAG
+========================= */
+
 function pointerDown(clientX) {
+  if (isFocusing) return;
+
   isDragging = true;
 
   startPointerX = clientX;
   startTranslateX = currentX;
 
-  viewport.classList.add("is-dragging");
+  viewport.classList.add(
+    "is-dragging"
+  );
+
+  track.classList.remove(
+    "is-focusing"
+  );
 }
+
 
 function pointerMove(clientX) {
   if (!isDragging) return;
+  if (isFocusing) return;
 
-  const delta = clientX - startPointerX;
+  const delta =
+    clientX - startPointerX;
 
-  setTranslate(startTranslateX + delta);
+  setTranslate(
+    startTranslateX + delta
+  );
 }
+
 
 function pointerUp() {
   isDragging = false;
 
-  viewport.classList.remove("is-dragging");
+  viewport.classList.remove(
+    "is-dragging"
+  );
 }
 
 
@@ -92,25 +155,48 @@ function pointerUp() {
    MOUSE
 ========================= */
 
-viewport.addEventListener("mousedown", (e) => {
-  e.preventDefault();
+viewport.addEventListener(
+  "mousedown",
+  (event) => {
 
-  pointerDown(e.clientX);
-});
+    event.preventDefault();
 
-window.addEventListener("mousemove", (e) => {
-  pointerMove(e.clientX);
-});
+    pointerDown(
+      event.clientX
+    );
+  }
+);
 
-window.addEventListener("mouseup", () => {
-  pointerUp();
-});
 
-viewport.addEventListener("mouseleave", () => {
-  if (isDragging) {
+window.addEventListener(
+  "mousemove",
+  (event) => {
+
+    pointerMove(
+      event.clientX
+    );
+  }
+);
+
+
+window.addEventListener(
+  "mouseup",
+  () => {
+
     pointerUp();
   }
-});
+);
+
+
+viewport.addEventListener(
+  "mouseleave",
+  () => {
+
+    if (isDragging) {
+      pointerUp();
+    }
+  }
+);
 
 
 /* =========================
@@ -119,89 +205,261 @@ viewport.addEventListener("mouseleave", () => {
 
 viewport.addEventListener(
   "touchstart",
-  (e) => {
-    if (e.touches.length !== 1) return;
+  (event) => {
 
-    pointerDown(e.touches[0].clientX);
+    if (
+      event.touches.length !== 1
+    ) {
+      return;
+    }
+
+    pointerDown(
+      event.touches[0].clientX
+    );
   },
-  { passive: true }
+  {
+    passive: true
+  }
 );
+
 
 viewport.addEventListener(
   "touchmove",
-  (e) => {
-    if (e.touches.length !== 1) return;
+  (event) => {
 
-    e.preventDefault();
+    if (
+      event.touches.length !== 1
+    ) {
+      return;
+    }
 
-    pointerMove(e.touches[0].clientX);
+    event.preventDefault();
+
+    pointerMove(
+      event.touches[0].clientX
+    );
   },
-  { passive: false }
+  {
+    passive: false
+  }
 );
+
 
 viewport.addEventListener(
   "touchend",
   () => {
+
     pointerUp();
   },
-  { passive: true }
+  {
+    passive: true
+  }
 );
 
 
 /* =========================
-   IMAGE
+   STORE INDICATOR
 ========================= */
 
-image.addEventListener("load", () => {
-  updateBounds();
+function showStoreName(name) {
 
-  if (minX < 0) {
-    const initialX = minX * 0.15;
+  clearTimeout(
+    indicatorTimer
+  );
 
-    setTranslate(initialX);
+  if (name === "UPSTAIRS") {
+
+    storeIndicatorText.textContent =
+      "UPSTAIRS · COMING SOON";
+
+  } else {
+
+    storeIndicatorText.textContent =
+      name;
   }
-});
 
-window.addEventListener("resize", updateBounds);
+  storeIndicator.classList.add(
+    "show"
+  );
 
-if (image.complete) {
-  updateBounds();
+  indicatorTimer =
+    setTimeout(() => {
 
-  if (minX < 0) {
-    const initialX = minX * 0.15;
+      storeIndicator.classList.remove(
+        "show"
+      );
 
-    setTranslate(initialX);
-  }
+    }, 2200);
 }
 
 
 /* =========================
-   STORE HOTSPOTS
+   FOCUS STORE
 ========================= */
 
-hotspots.forEach((hotspot) => {
-  hotspot.addEventListener("click", () => {
+function focusStore(hotspot) {
 
-    const movement = Math.abs(currentX - startTranslateX);
+  if (isFocusing) return;
 
-    if (movement > 8) {
-      return;
-    }
+  isFocusing = true;
 
-    const storeName = hotspot.dataset.store;
+  clearTimeout(
+    zoomTimer
+  );
 
-    clearTimeout(indicatorTimer);
+  const hotspotCenter =
+    hotspot.offsetLeft +
+    hotspot.offsetWidth / 2;
 
-    if (storeName === "UPSTAIRS") {
-      storeIndicatorText.textContent = "UPSTAIRS · COMING SOON";
-    } else {
-      storeIndicatorText.textContent = storeName;
-    }
+  const viewportCenter =
+    viewport.clientWidth / 2;
 
-    storeIndicator.classList.add("show");
+  const targetX =
+    viewportCenter -
+    hotspotCenter;
 
-    indicatorTimer = setTimeout(() => {
-      storeIndicator.classList.remove("show");
-    }, 1800);
+  const finalX =
+    clamp(
+      targetX,
+      minX,
+      maxX
+    );
+
+
+  /* Zoom point = clicked store */
+  const originPercent =
+    (
+      hotspotCenter /
+      canvas.offsetWidth
+    ) * 100;
+
+  canvas.style.transformOrigin =
+    `${originPercent}% 50%`;
+
+
+  /* Smooth horizontal move */
+  track.classList.add(
+    "is-focusing"
+  );
+
+  currentX = finalX;
+
+  track.style.transform =
+    `translate3d(${finalX}px, 0, 0)`;
+
+  updateProgress();
+
+
+  /* Zoom */
+  requestAnimationFrame(() => {
+
+    canvas.classList.add(
+      "is-zoomed"
+    );
   });
-});
+
+
+  /* Show store name */
+  setTimeout(() => {
+
+    showStoreName(
+      hotspot.dataset.store
+    );
+
+  }, 350);
+
+
+  /* Gently return from zoom */
+  zoomTimer =
+    setTimeout(() => {
+
+      canvas.classList.remove(
+        "is-zoomed"
+      );
+
+      setTimeout(() => {
+
+        track.classList.remove(
+          "is-focusing"
+        );
+
+        isFocusing = false;
+
+      }, 650);
+
+    }, 1250);
+}
+
+
+/* =========================
+   HOTSPOT CLICKS
+========================= */
+
+hotspots.forEach(
+  (hotspot) => {
+
+    hotspot.addEventListener(
+      "click",
+      (event) => {
+
+        const movement =
+          Math.abs(
+            currentX -
+            startTranslateX
+          );
+
+        /*
+          If user was dragging,
+          don't count it as click.
+        */
+        if (movement > 8) {
+          return;
+        }
+
+        event.stopPropagation();
+
+        focusStore(
+          hotspot
+        );
+      }
+    );
+
+  }
+);
+
+
+/* =========================
+   IMAGE LOAD
+========================= */
+
+function initialisePanorama() {
+
+  updateBounds();
+
+  if (minX < 0) {
+
+    const initialX =
+      minX * 0.15;
+
+    setTranslate(
+      initialX
+    );
+  }
+}
+
+
+image.addEventListener(
+  "load",
+  initialisePanorama
+);
+
+
+window.addEventListener(
+  "resize",
+  updateBounds
+);
+
+
+if (image.complete) {
+  initialisePanorama();
+}
