@@ -19,10 +19,14 @@ ikisi de eşleşmelidir. Bir üründe birden çok ülke veya mağaza tag'i olabi
 
 ## Mağaza tag'leri
 
-`store-tech`, `store-home`, `store-pets`, `store-beauty`, `store-fashion`, `store-lifestyle`
+`store-tech`, `store-home`, `store-pets`, `store-beauty`, `store-fashion`, `store-kids`
 
 Örnek: Almanya'daki teknoloji mağazası için `country-germany` + `store-tech`.
-Fransa'da da gösterilsin istiyorsanız ayrıca `country-france` ekleyin.
+Ülke tag’i, ürünün gerçekten o ülkedeki stoktan gönderildiği doğrulanınca eklenir.
+Hazırlama süresi dahil teslimat hedefi 3–6 gündür; başka ülkeden gönderim bu kurala uymaz.
+Her ilave ülke tag’i için ayrı yerel stok ve teslimat doğrulaması gerekir.
+Çocuk kitabı/oyuncak için ülke tag’i + `store-kids` kullanın. Kitabın dilini,
+yaş aralığını ve oyuncakların üretici güvenlik bilgilerini ürün açıklamasına ekleyin.
 
 ## Shopify'da ürün yayımlama
 
@@ -58,5 +62,7 @@ Kaynaklar: [Shopify public erişimi](https://shopify.dev/docs/api/storefront/202
 [ürün filtreleri](https://shopify.dev/docs/api/storefront/2026-10/queries/products),
 [Shopify checkout](https://shopify.dev/docs/api/storefront/2026-10/mutations/cartCreate).
 
-Travel ve Auto konumları Lifestyle ve Fashion olarak adlandırılmıştır; panorama
-ve harita değişmemiştir. Eski `travel.html` ve `auto.html` bağlantıları da çalışır.
+Lifestyle konumu Kids & Play olarak değiştirilmiştir; panorama ve harita korunmuştur.
+Mağaza adresi `kids.html` olur; eski `lifestyle.html` ve `travel.html` bağlantıları da
+aynı Kids ürünlerini gösterir. Eski `store-lifestyle` tag’i yerine `store-kids` kullanın.
+Fashion ve eski `auto.html` bağlantısı çalışmaya devam eder.
