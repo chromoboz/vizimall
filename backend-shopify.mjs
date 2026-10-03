@@ -47,6 +47,12 @@ const lines = `nodes{id productId variantId name title variantTitle quantity ref
 const shipments = `nodes{id status latestShipmentStatus estimatedDeliveryAt trackingInformation{company number url}} ${page}`;
 export const profileQuery = `query {customer{id firstName lastName displayName emailAddress{emailAddress}
   defaultAddress{id formatted} addresses(first:100){nodes{id formatted} ${page}}}}`;
+export async function customerProfile(token) { const {customer}=await query(token,profileQuery); if(!customer?.id)throw new Error('Customer unavailable');return customer; }
+export async function updateCustomerName(token,input) {
+  const data=await query(token,`mutation($input:CustomerUpdateInput!){customerUpdate(input:$input){customer{id firstName lastName} userErrors{field message}}}`,{input});
+  if(data.customerUpdate.userErrors.length||!data.customerUpdate.customer)throw new Error('Name not saved');
+  return data.customerUpdate.customer;
+}
 export const ordersQuery = `query($after:String){customer{orders(first:50,after:$after,reverse:true){nodes{
   id name processedAt cancelledAt financialStatus fulfillmentStatus statusPageUrl
   totalPrice{amount currencyCode} totalRefunded{amount currencyCode} totalTax{amount currencyCode} totalShipping{amount currencyCode}

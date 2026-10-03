@@ -60,7 +60,7 @@
     if (entering || !e.isPrimary || e.button !== 0) return;
     stopMotion();
     // Prevent native button focus from panning the clipped viewport during a drag.
-    e.preventDefault();
+    if(e.pointerType!=='touch')e.preventDefault();
     dragged = false;
     friction = e.pointerType === "touch" ? 420 : 240;
     pointer = {id:e.pointerId, start:e.clientX, startY:e.clientY, x, lastX:e.clientX, lastTime:performance.now()};
@@ -68,7 +68,9 @@
   window.addEventListener('pointermove', e => {
     if (!pointer || pointer.id !== e.pointerId) return;
     const delta = e.clientX-pointer.start;
-    if (!dragged && Math.hypot(delta,e.clientY-pointer.startY)>8) {
+    const vertical=e.clientY-pointer.startY;
+    if(!dragged&&Math.abs(vertical)>8&&Math.abs(vertical)>Math.abs(delta)){pointer=null;return;}
+    if (!dragged && Math.abs(delta)>8) {
       dragged = true;
       viewport.setPointerCapture(e.pointerId);
       viewport.classList.add('is-dragging');

@@ -51,12 +51,15 @@
     try {
       const data = await request('account'); status.textContent = ''; content.replaceChildren();
       const nav = node('nav', undefined, 'account-nav'); nav.setAttribute('aria-label', 'Account sections');
-      for (const [title, id] of [['Profile', 'profile'], ['Orders & tracking', 'orders'], ['Reviews', 'reviews'], ['VIZI Coin', 'coins'], ['Favourites', 'favourites']]) nav.append(link(title, `#${id}`, ''));
+      const sections=[['Profile', 'profile'], ['Orders & tracking', 'orders'], ['Reviews', 'reviews'], ['VIZI Coin', 'coins'], ['Favourites', 'favourites'],['Support','support']];
+      if(data.moderator)sections.push(['Customer inbox','inbox'],['Moderation','moderation'],['Visits & email','audience']);
+      for (const [title,id] of sections) nav.append(link(title, `#${id}`, ''));
       const logout = node('form'); logout.method = 'post'; logout.action = '/api/logout'; const logoutButton = node('button', 'Sign out', 'account-button account-secondary'); logout.append(logoutButton);
       content.append(nav, logout); const grid = node('div', undefined, 'account-grid'); content.append(grid);
       const profile = card('Your profile', 'profile'); profile.append(node('p', data.customer.displayName), node('p', data.customer.emailAddress?.emailAddress || ''));
       for (const address of data.customer.addresses.nodes) profile.append(node('p', address.formatted.join(', ')));
       profile.append(link('Manage profile & addresses', data.nativeAccount), node('p', 'Profile and delivery addresses are saved securely in your Shopify account.', 'account-muted')); grid.append(profile);
+      try { await window.ViziProfile.editor(profile); } catch { profile.append(node('p','Profile editing is temporarily unavailable. You can still manage your details in Shopify.')); }
       const coins = card('VIZI Coin', 'coins'); grid.append(coins);
       if (data.coins.active) {
         coins.append(node('h3', `${data.coins.balance} VIZI Coin`)); const next = data.coins.rewards.find(reward => reward.coins > data.coins.balance);
@@ -103,13 +106,15 @@
       }
       await support(grid, data.orders, data.moderator);
       if (data.moderator) { await moderation(grid); await audience(grid); }
+      function activeView(){const target=location.hash.slice(1);const active=sections.some(([,id])=>id===target)?target:'profile';for(const section of grid.children)section.hidden=section.id!==active;for(const item of nav.querySelectorAll('a')){if(item.hash==='#'+active)item.setAttribute('aria-current','page');else item.removeAttribute('aria-current');}}
+      window.onhashchange=activeView;activeView();window.ViziProfile?.backLink();
     } catch (error) {
       status.textContent = 'Sign in to view your account, or try again if the connection is unavailable.';
       content.replaceChildren(link('Sign in / Create an account', '/api/login'), node('p', 'Shopify sends a one-time code to your email. No password is needed.', 'account-muted'), link('Open Shopify account', 'https://shopify.com/108550685006/account', 'account-button account-secondary'));
     }
   }
   async function moderation(grid) {
-    const panel = card('Review moderation'); panel.classList.add('account-wide'); grid.append(panel);
+    const panel = card('Review moderation','moderation'); panel.classList.add('account-wide'); grid.append(panel);
     panel.append(node('p', 'Publish honest positive and negative reviews equally. Reject only spam, unrelated content or personal information.'));
     const data = await request('moderation');
     for (const review of data.reviews) { const row = node('article', undefined, 'review-card'); row.append(node('strong', `${review.author} · ${review.rating}/5`), node('p', review.text)); photos(review, row);
@@ -153,7 +158,7 @@
     const data = await request('support');
     for (const ticket of data.tickets) { const row = node('article', undefined, 'review-card'); row.append(node('strong', `${ticket.reference} · ${ticket.status}`), node('p', ticket.text)); if (ticket.reply) row.append(node('p', `VIZIMALL: ${ticket.reply}`)); panel.append(row); }
     if (isModerator) {
-      const inbox = await request('support-admin'); const section = card('Customer support inbox'); section.classList.add('account-wide'); grid.append(section);
+      const inbox = await request('support-admin'); const section = card('Customer support inbox','inbox'); section.classList.add('account-wide'); grid.append(section);
       for (const ticket of inbox.tickets) { const row = node('article', undefined, 'review-card'); row.append(node('strong', `${ticket.reference} · ${ticket.status}`), node('p', ticket.text)); const reply = node('textarea'); reply.maxLength = 2000; reply.minLength = 5; reply.setAttribute('aria-label', `Reply to ${ticket.reference}`); const button = node('button', 'Reply & resolve', 'account-button'); button.onclick = async () => { button.disabled = true; try { await request('support-admin', { id: ticket.id, reply: reply.value }); await load(); } catch (error) { status.textContent = error.message; button.disabled = false; } }; row.append(reply, button); section.append(row); }
     }
   }

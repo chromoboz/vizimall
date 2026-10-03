@@ -10,7 +10,7 @@ The current local environment cannot download npm packages. Local pure business/
 
 Existing public client: `58b6b514-bc5e-4384-9a12-08347583d90d`.
 
-Set callback URL `https://vizimall.com/api/callback`, JavaScript origin `https://vizimall.com`, logout URL `https://vizimall.com/account.html`. These settings are currently blank. Native account fallback: `https://shopify.com/108550685006/account`. Keep the public client type. Customer read and order read permissions are required. Profile/address changes and return/cancellation requests use Shopify's existing authenticated customer portal.
+Set callback URL `https://vizimall.com/api/callback`, JavaScript origin `https://vizimall.com`, logout URL `https://vizimall.com/account.html`. These settings were saved and the live email-code callback was verified on 3 October 2026. Native account fallback: `https://shopify.com/108550685006/account`. Keep the public client type. Customer read and order read permissions are required. Name changes use the existing authenticated Customer Account API write scope. Address changes and return/cancellation requests use Shopify's existing customer portal.
 
 Tokens remain server-side in private, encrypted Netlify Blobs. Browser cookies are Secure/HttpOnly and contain opaque random identifiers. OAuth uses PKCE, one-use state, browser binding and verified issuer/audience/signature/nonce. Session expiry requires fresh sign-in. No refresh token, Admin token or customer password is stored in the browser.
 
@@ -58,3 +58,11 @@ All public pages load `consent.js` and `consent.css`. Optional measurement is of
 Daily `retention` function is generated during production builds only; previews cannot clean production records. It removes expired measurement records after 31 days and expired security/login/session records. Withdrawn newsletter contact details are removed after 31 days, retaining only hashed email/status/date for suppression. Active consent stays until withdrawal or a deletion request. Before commercial launch finalize operator identity and review the full policies; the website notice is not a claim that all business/legal requirements are complete.
 
 Validated by `node --test audience.test.mjs customer.test.mjs storefront-api.test.cjs`: 27 tests including pre-consent blocking, rejection/reload/withdrawal, origin protection, unverified registration denial, trusted-email binding, deduplication and retention.
+
+## Profile and scrolling (3 October 2026)
+
+`profile.js/css`, `backend-profile.mjs` and six local SVG presets add a separate profile editor. Name changes bind to the signed-in Shopify customer token, using customerUpdate; client-submitted customer IDs are ignored. First name and last initial in the header are derived from actual Shopify names. No example name is written to production. Avatars and optional JPEG/PNG photos are stored under hashed customer keys in private Blobs and returned only through the authenticated own-photo endpoint, without caching. Uploaded images are decoded, resized to 512px and re-encoded without EXIF/GPS; SVG and oversized/malformed uploads are rejected. Selecting an avatar replaces the uploaded photo.
+
+The profile back arrow accepts only same-origin mall/store/map paths and active countries. All existing orders/reviews/favourites/support/owner tabs remain available. Cart moves to the document bottom-right; cookie height keeps it clear of the banner. Home uses normal document scrolling. Mall layout releases the fixed-body lock, and touch direction distinguishes vertical page movement from horizontal panorama dragging.
+
+31 automated tests pass, including actual Sharp photo re-encoding, per-customer isolation, session-bound name writes and rejected foreign-origin mutations. Local browser tests verify name/photo persistence, account tabs, country-preserving back navigation, cart opening and real document scrolling. The browser viewport override did not take effect (actual viewport remained 1265 × 720); narrow-screen layout is implemented but actual mobile touch behavior must also be checked on a device. No real customer name was changed during tests.

@@ -19,17 +19,20 @@
   for (const button of [accept,reject,settings]) { button.type='button'; actions.append(button); }
   const save = make('button','Save preferences'); save.type='button'; save.hidden=true; actions.append(save);
   const feedback = make('p'); feedback.setAttribute('role','status'); footer.append(feedback); document.body.append(panel);
+  const keepClear=()=>document.body.style.setProperty('--vizi-consent-bottom',panel.hidden?'0px':`${panel.getBoundingClientRect().height+36}px`);
+  if(typeof ResizeObserver!=='undefined')new ResizeObserver(keepClear).observe(panel);keepClear();
   function choose(analytics) {
     choice = { version, analytics, at: Date.now() }; checkbox.checked = analytics;
     try { localStorage.setItem(key,JSON.stringify(choice)); } catch {}
     if (!analytics) { controller?.abort(); try { sessionStorage.removeItem(sessionKey); } catch {} }
     panel.hidden=true; options.hidden=true; save.hidden=true; settings.hidden=false;
+    keepClear();
     feedback.textContent = analytics ? 'Optional measurement allowed. You can change this at any time.' : 'Optional measurement off. Shopping remains available.';
     manage.focus(); if (analytics) measure();
   }
   accept.onclick=()=>choose(true); reject.onclick=()=>choose(false); save.onclick=()=>choose(checkbox.checked);
-  settings.onclick=()=>{ options.hidden=false; save.hidden=false; settings.hidden=true; };
-  manage.onclick=()=>{ panel.hidden=false; options.hidden=false; save.hidden=false; settings.hidden=true; checkbox.checked=choice?.analytics === true; reject.focus(); };
+  settings.onclick=()=>{ options.hidden=false; save.hidden=false; settings.hidden=true; keepClear(); };
+  manage.onclick=()=>{ panel.hidden=false; options.hidden=false; save.hidden=false; settings.hidden=true; checkbox.checked=choice?.analytics === true; keepClear(); reject.focus(); };
   function measure() {
     if (choice?.analytics !== true || sent || !crypto.randomUUID) return;
     const allowed = ['/', '/index', '/mall', '/tech', '/home', '/pets', '/beauty', '/fashion', '/kids', '/auto', '/account', '/help', '/privacy', '/newsletter'];

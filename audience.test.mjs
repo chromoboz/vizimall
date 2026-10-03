@@ -63,7 +63,7 @@ test('Audience endpoints deny public admin reads, foreign origins and unverified
 });
 function browserHarness(source,storage=new Map()) {
   const nodes=[],requests=[],sessions=new Map(),listeners={};
-  class Element {constructor(tag){this.tag=tag;this.children=[];nodes.push(this);}append(...items){this.children.push(...items);}setAttribute(){}focus(){}}
+  class Element {constructor(tag){this.tag=tag;this.children=[];this.style={setProperty(){}};nodes.push(this);}append(...items){this.children.push(...items);}setAttribute(){}focus(){}getBoundingClientRect(){return{height:200};}}
   const backing={getItem:key=>storage.get(key)||null,setItem:(key,val)=>storage.set(key,val),removeItem:key=>storage.delete(key)};
   const session={getItem:key=>sessions.get(key)||null,setItem:(key,val)=>sessions.set(key,val),removeItem:key=>sessions.delete(key)};
   const sandbox={document:{createElement:tag=>new Element(tag),body:new Element('body')},location:{pathname:'/mall.html'},crypto:{randomUUID},Date,JSON,localStorage:backing,sessionStorage:session,AbortController,fetch:async(path,input)=>{requests.push({path,input});return{};},addEventListener:(type,fn)=>listeners[type]=fn};

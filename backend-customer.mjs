@@ -1,9 +1,10 @@
-import { discovery, exchange, customerData, clientId, origin, nativeAccount } from './backend-shopify.mjs';
+import { discovery, exchange, customerData, customerProfile, updateCustomerName, clientId, origin, nativeAccount } from './backend-shopify.mjs';
 import { store, hash, random, cookie, setCookie, session, update, limit } from './backend-persistence.mjs';
 import { submitReview, approvedReviews, ownReviews, reconcile, keyFromId } from './backend-reviews.mjs';
 import { publicReview, coinPolicy } from './backend-rules.mjs';
 import { createRequire } from 'node:module';
 import { publicAudience, newsletterStatus, newsletterRecord, newsletterReport, measurementReport } from './backend-audience.mjs';
+import { profileData, profileKey, saveProfileImage, nameInput } from './backend-profile.mjs';
 const require = createRequire(import.meta.url);
 const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
 const json = (data, status = 200) => Response.json(data, { status, headers });
@@ -37,7 +38,12 @@ export async function preparePhotos(input = []) {
   }));
 }
 let jwks;
-export function createHandler({ storeFactory = store, dataProvider = customerData } = {}) {
+export async function prepareAvatarPhoto(input) {
+  const [encoded]=await preparePhotos([input]);
+  return (await require('sharp')(Buffer.from(encoded,'base64')).resize(512,512,{fit:'cover',position:'centre'}).jpeg({quality:80}).toBuffer()).toString('base64');
+}
+export function createHandler({ storeFactory = store, dataProvider = customerData, profileProvider, nameWriter = updateCustomerName } = {}) {
+const readProfile=profileProvider||(dataProvider===customerData?customerProfile:async token=>(await dataProvider(token)).customer);
 return async function handler(req, context = {}) {
   try {
     const url = new URL(req.url), action = url.pathname.split('/').filter(Boolean).pop();
@@ -99,6 +105,23 @@ return async function handler(req, context = {}) {
       return new Response(Buffer.from(review.photos[index], 'base64'), { headers: { ...headers, 'Content-Type': 'image/jpeg' } });
     }
     if (!signed) return json({ error: 'Please sign in', signedIn: false, nativeAccount }, 401);
+    if (['profile','profile-photo'].includes(action)) {
+      const customer=await readProfile(signed.token);
+      if(action==='profile-photo'&&req.method==='GET') {
+        const entry=await db.get(profileKey(customer),{type:'json'});
+        if(!entry?.photo)return json({error:'Photo unavailable'},404);
+        return new Response(Buffer.from(entry.photo,'base64'),{headers:{...headers,'Content-Type':'image/jpeg','Cache-Control':'private, no-store','Cross-Origin-Resource-Policy':'same-origin'}});
+      }
+      if(action==='profile') {
+        if(req.method==='POST') {
+          await limit(db,`profile:${customer.id}`,30,3600000);const input=await body(req,1500000);
+          if(input.action==='name') Object.assign(customer,await nameWriter(signed.token,nameInput(input)));
+          else await saveProfileImage(db,customer,input,prepareAvatarPhoto);
+        }
+        return json(await profileData(db,customer));
+      }
+      return json({error:'Not found'},404);
+    }
     const data = await dataProvider(signed.token);
     const { customer, orders } = data;
     if (action === 'newsletter') {

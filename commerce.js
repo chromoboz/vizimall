@@ -94,7 +94,7 @@
     return node;
   }
   const cartButton = button('Bag (0)', showCart, 'cart-toggle');
-  document.querySelector('.shop-header, .topbar')?.append(cartButton);
+  document.body.append(cartButton);
   save();
   function showCart() {
     const modal = dialog(`Your bag · ${market.name}`);

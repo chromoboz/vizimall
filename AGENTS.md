@@ -1,5 +1,7 @@
 # VIZIMALL product sourcing rules
 
+Latest interface priority: separate profile screen matching the mall, editable real Shopify name, six avatars and private optional photo, persistent across pages/sessions. Header shows that customer’s avatar and first name plus last initial. Keep bag at bottom right with cookie clearance; preserve account features and native address management. Fix home/mall vertical scrolling while retaining horizontal panorama navigation. Do not hardcode example names. Payment/company tasks and product sourcing remain postponed.
+
 Latest priority (3 October 2026, later clarification): postpone payment, company information and sales/returns policy changes. Do not request those details now. Implement optional cookie preferences, consent-gated visit measurement and separate voluntary verified-email marketing permissions. No advertising campaign, no paid analytics/email service. Preserve shopping after rejection and allow withdrawal.
 
 Current priority (3 October 2026): product sourcing and importing are paused. Build the real customer storefront: secure Shopify accounts, own orders/tracking, saved favourites, purchase-verified moderated photo reviews, persistent support requests and VIZI Coin. Preserve country routing, map, design, galleries, variants and checkout. Never publish fake orders, tracking or reviews. No Admin/private token in browser code. No new paid service or outbound customer messages without specific authorization.
