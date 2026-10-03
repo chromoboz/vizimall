@@ -2,56 +2,56 @@ window.VIZIMALL_MARKETS = {
   "GR": {
     "name": "Greece",
     "local": "Ελλάδα",
-    "status": "preview",
+    "status": "active",
     "suppliers": [],
     "collections": {}
   },
   "DE": {
     "name": "Germany",
     "local": "Deutschland",
-    "status": "preview",
+    "status": "active",
     "suppliers": [],
     "collections": {}
   },
   "FR": {
     "name": "France",
     "local": "France",
-    "status": "preview",
+    "status": "active",
     "suppliers": [],
     "collections": {}
   },
   "IT": {
     "name": "Italy",
     "local": "Italia",
-    "status": "preview",
+    "status": "active",
     "suppliers": [],
     "collections": {}
   },
   "ES": {
     "name": "Spain",
     "local": "España",
-    "status": "preview",
+    "status": "active",
     "suppliers": [],
     "collections": {}
   },
   "NL": {
     "name": "Netherlands",
     "local": "Nederland",
-    "status": "preview",
+    "status": "active",
     "suppliers": [],
     "collections": {}
   },
   "PL": {
     "name": "Poland",
     "local": "Polska",
-    "status": "preview",
+    "status": "active",
     "suppliers": [],
     "collections": {}
   },
   "PT": {
     "name": "Portugal",
     "local": "Portugal",
-    "status": "preview",
+    "status": "active",
     "suppliers": [],
     "collections": {}
   }
