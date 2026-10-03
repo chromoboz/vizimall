@@ -22,7 +22,8 @@ ikisi de eşleşmelidir. Bir üründe birden çok ülke veya mağaza tag'i olabi
 `store-tech`, `store-home`, `store-pets`, `store-beauty`, `store-fashion`, `store-kids`
 
 Örnek: Almanya'daki teknoloji mağazası için `country-germany` + `store-tech`.
-Ülke tag’i, o ülkeye hazırlama süresi dahil 3–7 günlük teslimat doğrulanınca eklenir.
+Ülke tag’i, o ülkeye hazırlama süresi dahil en fazla 8 günlük teslimat doğrulanınca eklenir.
+Son talimatla 4–8 gün de kabul edilir; her ürünün gerçek tahmini süresini yazın.
 Başka ülkedeki depodan gönderim de bu süreyi karşılıyorsa kullanılabilir.
 Her ilave ülke tag’i için stok, hazırlama süresi ve hedef ülkenin teslimat süresi ayrı doğrulanır.
 İş günü ile takvim günü ayrımını ürünün teslimat açıklamasında açıkça belirtin.

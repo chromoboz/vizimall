@@ -1,6 +1,7 @@
 # VIZIMALL product sourcing rules
 
 User instruction, 3 October 2026:
+- Later clarification: the user explicitly accepts 4–8 day delivery. Maximum qualifying delivery is now 8 days including handling; this supersedes the earlier 7 day ceiling below. Always state each route's real estimate.
 - Latest user rule (3 October 2026): cross-border supply is allowed if verified customer delivery to the destination is 3–7 days including handling. A product can use two or more country tags when each destination route qualifies. This supersedes the previous same-country dispatch restriction and 3–6 day limit.
 - Verify actual dispatch warehouse, stock, handling time and destination delivery estimate before listing. Brand nationality, manufacture location, a generic EU warehouse label or ability to ship to a country is insufficient proof of local dispatch.
 - Target customer delivery is 3–7 days. Include handling/production when checking it and distinguish calendar and business days in the evidence and customer copy. Do not relabel slower products as 3–7 days.

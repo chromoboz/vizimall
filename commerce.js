@@ -299,7 +299,7 @@
   if (!panel || !api.stores.includes(store)) return;
   const destinationNotice = element('aside', 'destination-notice');
   destinationNotice.setAttribute('aria-label', 'Delivery destination');
-  destinationNotice.append(element('strong', '', `Shopping ${market.name}, delivering elsewhere?`), element('p', '', 'The mall you browse is separate from your delivery address. A 3–7 day estimate applies only where confirmed for the product. Other destinations may take longer or be unavailable; check shipping options with your address at checkout.'));
+  destinationNotice.append(element('strong', '', `Shopping ${market.name}, delivering elsewhere?`), element('p', '', 'The mall you browse is separate from your delivery address. The product’s stated delivery estimate applies only to confirmed destinations. Other destinations may take longer or be unavailable; check shipping options with your address at checkout.'));
   panel.before(destinationNotice);
   const grid = panel.querySelector('.product-grid');
   const message = panel.querySelector('.collection-message');
