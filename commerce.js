@@ -51,8 +51,8 @@
       target.append(safe);
     }
     for (const node of parsed.body.childNodes) {
-      if (node.nodeType === Node.ELEMENT_NODE && node.tagName === 'P' && /^Dispatched from /i.test(node.textContent.trim())) {
-        const text = node.textContent.trim();
+      if (node.nodeType === Node.ELEMENT_NODE && node.tagName === 'P' && /^Dispatched from /i.test(node.textContent.replace(/\s+/g, ' ').trim())) {
+        const text = node.textContent.replace(/\s+/g, ' ').trim();
         const estimate = text.match(/Estimated delivery:\s*([^.]*)\./i);
         if (estimate) {
           delivery.append(element('p', 'delivery-estimate', estimate[1]));
