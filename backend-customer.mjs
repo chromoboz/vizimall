@@ -3,6 +3,7 @@ import { store, hash, random, cookie, setCookie, session, update, limit } from '
 import { submitReview, approvedReviews, ownReviews, reconcile, keyFromId } from './backend-reviews.mjs';
 import { publicReview, coinPolicy } from './backend-rules.mjs';
 import { createRequire } from 'node:module';
+import { publicAudience, newsletterStatus, newsletterRecord, newsletterReport, measurementReport } from './backend-audience.mjs';
 const require = createRequire(import.meta.url);
 const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
 const json = (data, status = 200) => Response.json(data, { status, headers });
@@ -43,10 +44,13 @@ return async function handler(req, context = {}) {
     if (!['GET', 'POST'].includes(req.method)) return json({ error: 'Method not allowed' }, 405);
     if (req.method === 'POST') checkOrigin(req);
     const db = await storeFactory(req);
+    const audience = await publicAudience(action, req, db, context, body);
+    if (audience) return json(audience);
     if (action === 'login' && req.method === 'GET') {
       await limit(db, `login:${context.ip || 'unknown'}`, 60, 3600000);
       const state = random(), verifier = random(), nonce = random(), binding = random();
-      await db.setJSON(`oauth/${hash(state)}`, { verifier, nonce, binding: hash(binding), expiresAt: Date.now() + 600000 });
+      const returnPath = url.searchParams.get('return') === 'newsletter' ? '/newsletter.html' : '/account.html';
+      await db.setJSON(`oauth/${hash(state)}`, { verifier, nonce, binding: hash(binding), returnPath, expiresAt: Date.now() + 600000 });
       const config = await discovery();
       const destination = new URL(config.authorization_endpoint);
       const parameters = { client_id: clientId, redirect_uri: `${origin}/api/callback`, response_type: 'code',
@@ -70,7 +74,7 @@ return async function handler(req, context = {}) {
       const id = random(), seconds = Math.min(tokens.expires_in, 86400);
       // Access/identity tokens remain on the server. Expiry requires fresh sign-in.
       await db.setJSON(`sessions/${hash(id)}`, { token: tokens.access_token, identity: tokens.id_token, expiresAt: Date.now() + seconds * 1000 });
-      return redirect(`${origin}/account.html`, [setCookie('__Host-vizi-session', id, seconds), setCookie('__Host-vizi-login', '', 0)]);
+      return redirect(`${origin}${entry.data.returnPath === '/newsletter.html' ? '/newsletter.html' : '/account.html'}`, [setCookie('__Host-vizi-session', id, seconds), setCookie('__Host-vizi-login', '', 0)]);
     }
     const signed = await session(req, db);
     if (action === 'logout' && req.method === 'POST') {
@@ -97,6 +101,13 @@ return async function handler(req, context = {}) {
     if (!signed) return json({ error: 'Please sign in', signedIn: false, nativeAccount }, 401);
     const data = await dataProvider(signed.token);
     const { customer, orders } = data;
+    if (action === 'newsletter') {
+      if (req.method === 'GET') return json(await newsletterStatus(db, customer));
+      await limit(db, `newsletter:${customer.id}`, 20, 86400000);
+      await newsletterRecord(db, customer, await body(req, 2000));
+      return json(await newsletterStatus(db, customer));
+    }
+    if (action === 'audience-admin' && moderator(customer) && req.method === 'GET') return json({ analytics: await measurementReport(db), newsletter: await newsletterReport(db) });
     if (action === 'account' && req.method === 'GET') {
       const coins = await reconcile(db, customer.id, orders), reviews = await ownReviews(db, customer.id);
       return json({ ...data, reviews: reviews.map(review => ({ ...publicReview(review), status: review.status, productId: review.productId, orderId: review.orderId })),

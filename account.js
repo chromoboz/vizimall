@@ -102,7 +102,7 @@
         const remove = node('button', 'Remove', 'account-button account-secondary'); remove.onclick = async () => { remove.disabled = true; try { await request('favourites', { ...item, action: 'remove' }); await load(); } catch (error) { status.textContent = error.message; remove.disabled = false; } }; row.append(remove); favourites.append(row);
       }
       await support(grid, data.orders, data.moderator);
-      if (data.moderator) await moderation(grid);
+      if (data.moderator) { await moderation(grid); await audience(grid); }
     } catch (error) {
       status.textContent = 'Sign in to view your account, or try again if the connection is unavailable.';
       content.replaceChildren(link('Sign in / Create an account', '/api/login'), node('p', 'Shopify sends a one-time code to your email. No password is needed.', 'account-muted'), link('Open Shopify account', 'https://shopify.com/108550685006/account', 'account-button account-secondary'));
@@ -116,6 +116,30 @@
       for (const [title, state] of [['Publish', 'approved'], ['Reject', 'rejected']]) { const button = node('button', title, 'account-button account-secondary'); button.onclick = async () => { button.disabled = true; try { await request('moderation', { id: review.id, revision: review.revision, status: state }); await load(); } catch (error) { status.textContent = error.message; button.disabled = false; } }; row.append(button); }
       panel.append(row);
     }
+  }
+  async function audience(grid) {
+    const panel = card('Visits & email permissions', 'audience'); panel.classList.add('account-wide'); grid.append(panel);
+    try {
+      const data = await request('audience-admin');
+      panel.append(node('p', data.analytics.definition, 'account-muted'));
+      if (!data.analytics.days.length) panel.append(node('p', 'No consenting visits recorded yet.'));
+      const table = node('table', undefined, 'audience-table'), heading = node('tr');
+      for (const title of ['Date (UTC)', 'Consenting tab sessions', 'Pageviews']) heading.append(node('th', title)); table.append(heading);
+      for (const day of data.analytics.days) { const row = node('tr'); for (const value of [day.day, day.sessions, day.pageviews]) row.append(node('td', String(value))); table.append(row); } panel.append(table);
+      panel.append(node('h3', `${data.newsletter.subscribed.length} verified email subscriptions`), node('p', `${data.newsletter.withdrawn} withdrawn. No campaign is sent by this dashboard. Before any future campaign, refresh this list and apply withdrawals in the sending tool. Business identity and marketing policies must be finalized before commercial launch.`, 'account-muted'), link('Manage my email permission', 'newsletter.html'));
+      for (const item of data.newsletter.subscribed) panel.append(node('p', `${item.email} · ${item.subscribedAt} · consent ${item.version}`, 'audience-status'));
+      const exportButton = node('button', 'Export current consenting subscribers', 'account-button account-secondary');
+      exportButton.onclick = async () => {
+        exportButton.disabled = true;
+        try {
+          const fresh = await request('audience-admin');
+          const escape = value => '"' + String(value ?? '').replace(/^[=+@-]/, "'").replaceAll('"', '""') + '"';
+          const rows = [['email','consented_at','consent_version','consent_text','verification','unsubscribe_url'], ...fresh.newsletter.subscribed.map(item => [item.email,item.subscribedAt,item.version,item.text,item.verification,item.unsubscribeUrl])];
+          const objectUrl = URL.createObjectURL(new Blob([rows.map(row => row.map(escape).join(',')).join('\r\n')], {type:'text/csv;charset=utf-8'}));
+          const download = link('', objectUrl); download.download='vizimall-consenting-subscribers.csv'; document.body.append(download); download.click(); download.remove(); URL.revokeObjectURL(objectUrl);
+        } catch { panel.append(node('p','Could not export. Please retry.')); } finally { exportButton.disabled = false; }
+      }; panel.append(exportButton);
+    } catch { panel.append(node('p','Visit and email reporting is temporarily unavailable. Your other account functions remain available.')); }
   }
   async function support(grid, orders, isModerator) {
     const panel = card('Help with an order', 'support'); panel.classList.add('account-wide'); grid.append(panel);

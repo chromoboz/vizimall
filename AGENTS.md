@@ -1,5 +1,7 @@
 # VIZIMALL product sourcing rules
 
+Latest priority (3 October 2026, later clarification): postpone payment, company information and sales/returns policy changes. Do not request those details now. Implement optional cookie preferences, consent-gated visit measurement and separate voluntary verified-email marketing permissions. No advertising campaign, no paid analytics/email service. Preserve shopping after rejection and allow withdrawal.
+
 Current priority (3 October 2026): product sourcing and importing are paused. Build the real customer storefront: secure Shopify accounts, own orders/tracking, saved favourites, purchase-verified moderated photo reviews, persistent support requests and VIZI Coin. Preserve country routing, map, design, galleries, variants and checkout. Never publish fake orders, tracking or reviews. No Admin/private token in browser code. No new paid service or outbound customer messages without specific authorization.
 
 VIZI Coin rates and thresholds may be proposed by the agent. They remain a proposal; do not enable economic awards or redemption until specifically approved. No reward depends on a positive rating. No double rewards for the same order/review; cancellations/refunds and withdrawn or invalid reviews reverse awards.

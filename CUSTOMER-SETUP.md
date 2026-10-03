@@ -45,3 +45,16 @@ Account access and review submission refresh the user's own order/refund state. 
 8. VIZI Coin remains inactive with no made-up balance/discounts. Test the chosen active policy against paid, refunded, cancelled, repeat and concurrent events before activation.
 
 The user and friends will perform real purchases after technical preparation. No order or payment is placed on their behalf. Company registration, payment-provider onboarding, legal policy/contact details and marketing remain outside the completed technical checks.
+# Cookie preferences, measurement and email consent (3 October 2026)
+
+The later user instruction postpones payments, company details and commercial policies. Do not change those settings or request details in this phase.
+
+All public pages load `consent.js` and `consent.css`. Optional measurement is off by default; accept and reject are equally accessible, management remains in the footer, withdrawal clears the tab identifier and stops further requests. Choice/version/time stays locally for 180 days. There are no advertising pixels. Necessary account, cart and country storage still works after rejection.
+
+`backend-audience.mjs` stores only consented daily browser-tab sessions and page-category views in private Frankfurt Blobs. This is an estimate of consenting sessions, not all people or all visits. No account/email/referrer/query/raw IP/fingerprint enters analytics records. Session events deduplicate with CAS. Security request limits hash IP separately; records expire with daily retention. Existing hosting requests still use plan credits; no paid analytics add-on was enabled.
+
+`newsletter.html` first asks for Shopify email-code verification, then a separate unchecked marketing checkbox. Backend uses the authenticated Customer Account API email, never a submitted guest email. This is verified-email signup followed by explicit consent, not a second marketing confirmation email and not automatic account subscription. No email is sent and no campaign or new provider is configured. Consent record includes exact text/version/time/source. Unsubscribe works in the signed account or with an opaque token link (fragment stripped from URL, explicit POST confirmation; GET never changes consent). Owner-only account dashboard exports the freshly fetched active list, with per-recipient unsubscribe links. There is no automatic Shopify marketing synchronization. A future sender must apply the current suppression list and include unsubscribe links before every campaign.
+
+Daily `retention` function is generated during production builds only; previews cannot clean production records. It removes expired measurement records after 31 days and expired security/login/session records. Withdrawn newsletter contact details are removed after 31 days, retaining only hashed email/status/date for suppression. Active consent stays until withdrawal or a deletion request. Before commercial launch finalize operator identity and review the full policies; the website notice is not a claim that all business/legal requirements are complete.
+
+Validated by `node --test audience.test.mjs customer.test.mjs storefront-api.test.cjs`: 27 tests including pre-consent blocking, rejection/reload/withdrawal, origin protection, unverified registration denial, trusted-email binding, deduplication and retention.
