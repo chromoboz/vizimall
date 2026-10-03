@@ -65,7 +65,7 @@ test('Checkout validates tags and variants, then uses Shopify cart and buyer cou
     assert.equal(variables.input.buyerIdentity.countryCode,'DE');
     return { data: { cartCreate: { cart: { checkoutUrl: 'https://example.myshopify.com/checkouts/test', totalQuantity: 2 }, userErrors: [], warnings: [] } } };
   });
-  assert.equal(await client.checkout('DE',[line]), 'https://example.myshopify.com/checkouts/test');
+  assert.equal(await client.checkout('DE',[line]), 'https://example.myshopify.com/checkouts/test?sso=silent');
   assert.ok(mutation);
 });
 test('Changed tags and sold-out variants prevent checkout mutation', async () => {

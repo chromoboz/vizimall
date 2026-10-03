@@ -90,6 +90,9 @@
       if (url.protocol !== 'https:' || !(url.hostname === config.domain || url.hostname === 'shopify.com' || url.hostname.endsWith('.shopify.com'))) {
         throw new Error('Unable to open secure checkout. Please try again.');
       }
+      // Shopify authenticates an existing Customer Accounts session in checkout.
+      // No customer token is sent to or stored in this browser.
+      url.searchParams.set('sso', 'silent');
       return url.href;
     }
     return Object.freeze({ products, product, checkout });

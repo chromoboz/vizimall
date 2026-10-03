@@ -17,7 +17,7 @@
   header.append(link);
   for (const anchor of document.querySelectorAll('a[href]')) {
     const target = new URL(anchor.href, location.href);
-    if (target.origin === location.origin && /\/mall(?:\.html)?\/?$/.test(target.pathname)) {
+    if (target.origin === location.origin && /\/(mall|account)(?:\.html)?\/?$/.test(target.pathname)) {
       target.searchParams.set('country', code);
       anchor.href = target.href;
     }

@@ -1,0 +1,19 @@
+[build]
+  command = "node build.mjs"
+  publish = "dist"
+  functions = ".generated/functions"
+[build.environment]
+  NODE_VERSION = "22"
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["sharp"]
+[[redirects]]
+  from = "https://www.vizimall.com/*"
+  to = "https://vizimall.com/:splat"
+  status = 301
+  force = true
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/customer/:splat"
+  status = 200
+  force = true

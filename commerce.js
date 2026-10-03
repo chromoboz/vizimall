@@ -292,6 +292,7 @@
       purchaseActions.append(add, button('View bag', () => { modal.close(); showCart(); }, 'commerce-secondary'));
       copy.append(selectLabel, select, selectedOption, purchaseActions, status, information.delivery);
       content.append(copy, information.details);
+      if (window.VizimallReviews) window.VizimallReviews(content, detail.id);
       showVariantPhoto();
     } catch (error) { status.textContent = error.message; }
   }
@@ -302,13 +303,53 @@
   destinationNotice.append(element('strong', '', `Shopping ${market.name}, delivering elsewhere?`), element('p', '', 'The mall you browse is separate from your delivery address. The product’s stated delivery estimate applies only to confirmed destinations. Other destinations may take longer or be unavailable; check shipping options with your address at checkout.'));
   panel.before(destinationNotice);
   const grid = panel.querySelector('.product-grid');
+  const tools = element('div', 'store-tools');
+  const search = element('input'); search.type = 'search'; search.placeholder = 'Search this store'; search.setAttribute('aria-label', 'Search this store');
+  const sorting = element('select'); sorting.setAttribute('aria-label', 'Sort products');
+  for (const [value, text] of [['name','Name A–Z'], ['low','Price: low to high'], ['high','Price: high to low']]) { const option = element('option', '', text); option.value = value; sorting.append(option); }
+  const stock = element('label', '', 'In stock only '); const stockInput = element('input'); stockInput.type = 'checkbox'; stock.append(stockInput);
+  const minimum = element('input'); minimum.type = 'number'; minimum.min = 0; minimum.placeholder = 'Min price'; minimum.setAttribute('aria-label', 'Minimum price');
+  const maximum = element('input'); maximum.type = 'number'; maximum.min = 0; maximum.placeholder = 'Max price'; maximum.setAttribute('aria-label', 'Maximum price');
+  tools.append(search, sorting, stock, minimum, maximum); grid.before(tools);
   const message = panel.querySelector('.collection-message');
   const count = panel.querySelector('.collection-heading > span');
   const more = button('Load more', load);
   more.hidden = true; panel.append(more);
   const retry = button('Try again', load, 'commerce-secondary');
   retry.hidden = true; panel.append(retry);
-  let cursor = null, loading = false, seen = new Set();
+  let cursor = null, loading = false, seen = new Set(), records = [], complete = false;
+  function renderProducts() {
+    const filtered = records.filter(item => item.title.toLocaleLowerCase().includes(search.value.trim().toLocaleLowerCase())
+      && (!stockInput.checked || item.availableForSale)
+      && (!minimum.value || Number(item.priceRange.minVariantPrice.amount) >= Number(minimum.value))
+      && (!maximum.value || Number(item.priceRange.minVariantPrice.amount) <= Number(maximum.value)));
+    filtered.sort((a, b) => sorting.value === 'name' ? a.title.localeCompare(b.title) : (Number(a.priceRange.minVariantPrice.amount) - Number(b.priceRange.minVariantPrice.amount)) * (sorting.value === 'high' ? -1 : 1));
+    grid.replaceChildren();
+    for (const item of filtered) {
+      const card = element('article', 'product-card');
+      const open = button('', () => showProduct(item), 'product-open'); open.setAttribute('aria-label', `View ${item.title}`);
+      open.append(image(item.featuredImage, item.title), element('h3', '', item.title));
+      const favourite = button('♡ Save favourite', async () => {
+        favourite.disabled = true;
+        try {
+          const response = await fetch('/api/favourites', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'add', productId: item.id, title: item.title, country, store }) });
+          if (response.status === 401) { location.href = 'account.html#favourites'; return; }
+          if (!response.ok) throw new Error('Could not save. Please try again.');
+          favourite.textContent = '♥ Saved';
+        } catch (error) { message.textContent = error.message; } finally { favourite.disabled = false; }
+      }, 'favourite-button');
+      card.append(open, element('p', 'product-price', `From ${money(item.priceRange.minVariantPrice)}`), button(item.availableForSale ? 'Choose options' : 'View product · Sold out', () => showProduct(item), 'commerce-secondary'), favourite);
+      grid.append(card);
+    }
+    count.textContent = `${filtered.length} product${filtered.length === 1 ? '' : 's'}${complete ? '' : ' loaded'}`;
+    message.textContent = filtered.length ? 'Choose a product to explore its options.' : records.length ? 'No products match these filters.' : 'No products in this collection yet. Explore another store.';
+  }
+  async function refine() {
+    renderProducts();
+    // Complete pagination before claiming that filters search the whole collection.
+    if (!complete && !loading) await load();
+  }
+  for (const control of [search, sorting, stockInput, minimum, maximum]) control.addEventListener('input', refine);
   async function load() {
     if (loading) return;
     loading = true; more.disabled = true; retry.hidden = true;
@@ -327,18 +368,16 @@
       for (const item of result.products) {
         if (seen.has(item.id)) continue;
         seen.add(item.id);
-        const card = element('article', 'product-card');
-        const open = button('', () => showProduct(item), 'product-open');
-        open.setAttribute('aria-label', `View ${item.title}`);
-        open.append(image(item.featuredImage, item.title), element('h3', '', item.title));
-        card.append(open, element('p', 'product-price', `From ${money(item.priceRange.minVariantPrice)}`), button(item.availableForSale ? 'Choose options' : 'View product · Sold out', () => showProduct(item), 'commerce-secondary'));
-        grid.append(card);
+        records.push(item);
       }
-      count.textContent = `${seen.size} product${seen.size === 1 ? '' : 's'}`;
-      message.textContent = seen.size ? 'Choose a product to explore its options.' : 'No products in this collection yet. Explore another store.';
+      complete = !result.pageInfo.hasNextPage;
+      renderProducts();
       more.hidden = !result.pageInfo.hasNextPage;
     } catch (error) { message.textContent = error.message; count.textContent = 'Collection'; retry.hidden = false; }
     finally { loading = false; more.disabled = false; panel.setAttribute('aria-busy', 'false'); }
+    if (!complete && retry.hidden && (search.value || sorting.value !== 'name' || stockInput.checked || minimum.value || maximum.value || new URLSearchParams(location.search).has('product'))) await load();
+    const requested = new URLSearchParams(location.search).get('product');
+    if (requested && records.some(item => item.id === requested) && !panel.dataset.requestedOpened) { panel.dataset.requestedOpened = 'true'; showProduct(records.find(item => item.id === requested)); }
   }
   load();
 })();
