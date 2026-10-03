@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>VIZIMALL</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=51" />
+<link rel="stylesheet" href="commerce.css?v=1"></head>
+<body>
+  <header class="topbar">
+    <div class="brand"><div class="brand-wordmark">
+      <span class="brand-main" aria-label="Vizimall">V<span class="brand-dotted-i">I</span>Z<span class="brand-dotted-i">I</span>MALL</span>
+      <span class="brand-sub">A WORLD TO EXPLORE</span></div>
+    </div>
+<a class="account-link" href="https://shopify.com/108550685006/account" aria-label="My account — Shopify"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg><span>My account</span></a>
+  </header>
+  <main class="page-shell">
+    <section class="panorama-section">
+<div class="panorama-viewport" id="panoramaViewport" tabindex="0" aria-label="Mall panorama. Use left and right arrow keys to explore.">
+        <div class="panorama-track" id="panoramaTrack">
+          <div class="panorama-canvas">
+            <img id="panoramaImage" class="panorama-image" src="./vizimall-panorama-kids.png" alt="Vizimall panoramic shopping mall interior" draggable="false" />
+            <div class="facade-sign" style="left:8.6%;top:30%;--sign-angle:7deg"><strong>HOME &amp; LIVING</strong><span>Comfort for your home</span></div><button data-href="home.html" class="store-hotspot home-hotspot" data-store="HOME &amp; LIVING" aria-label="Home and Living"></button>
+            <div class="facade-sign" style="left:24.1%;top:34.3%;--sign-angle:4.5deg"><strong>BEAUTY &amp; CARE</strong><span>Care for yourself</span></div><button data-href="beauty.html" class="store-hotspot beauty-hotspot" data-store="BEAUTY &amp; CARE" aria-label="Beauty and Care"></button>
+            <div class="facade-sign" style="left:38%;top:37%;--sign-angle:1.5deg"><strong>TECH &amp; GADGETS</strong><span>Smart everyday essentials</span></div><button data-href="tech.html" class="store-hotspot tech-hotspot" data-store="TECH &amp; GADGETS" aria-label="Tech and Gadgets"></button>
+            <div class="facade-sign" style="left:52.4%;top:37%;--sign-angle:-1deg"><strong>KIDS &amp; PLAY</strong><span>Books, toys &amp; little adventures</span></div><button data-href="kids.html" class="store-hotspot travel-hotspot" data-store="KIDS &amp; PLAY" aria-label="Kids and Play"></button>
+            <div class="facade-sign" style="left:66.8%;top:36%;--sign-angle:-4deg"><strong>FASHION &amp; STYLE</strong><span>Express your personal style</span></div><button data-href="fashion.html" class="store-hotspot auto-hotspot" data-store="FASHION &amp; STYLE" aria-label="Fashion and Style"></button>
+            <div class="facade-sign" style="left:81.4%;top:33.5%;--sign-angle:-7deg"><strong>PETS &amp; FRIENDS</strong><span>Happy pets, happy homes</span></div><button data-href="pets.html" class="store-hotspot pets-hotspot" data-store="PETS &amp; FRIENDS" aria-label="Pets and Friends"></button>
+            <button class="store-hotspot stairs-hotspot" data-store="UPSTAIRS" aria-label="Upstairs"></button>
+          </div>
+        </div>
+        <div class="panorama-fade panorama-fade-left"></div>
+        <div class="panorama-fade panorama-fade-right"></div>
+        <div class="store-indicator" id="storeIndicator" role="status">
+          <span id="storeIndicatorText">Explore VIZIMALL</span>
+        </div>
+      </div>
+      <div class="drag-hint">
+        <span>←</span><span>Drag / Swipe to explore</span><span>→</span>
+      </div>
+
+    </section>
+  </main>
+  <script src="markets.js?v=2"></script><script src="country-context.js?v=3"></script><script src="script.js?v=36"></script>
+<script src="shopify-config.js?v=1"></script><script src="storefront-api.js?v=2"></script><script src="commerce.js?v=1"></script></body>
+</html>
+
