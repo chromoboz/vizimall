@@ -121,7 +121,7 @@
       entryTimer = setTimeout(() => {location.href = button.dataset.href;}, delay);
     } else {
       clearTimeout(timer);
-      label.textContent = 'UPSTAIRS · COMING SOON';
+      label.textContent = 'EXPLORE THE STORES ON THIS FLOOR';
       indicator.classList.add('show');
       timer = setTimeout(() => indicator.classList.remove('show'), 2500);
     }
