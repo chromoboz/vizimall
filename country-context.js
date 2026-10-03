@@ -15,7 +15,13 @@
   link.textContent = `${code} · ${market.name} ↗`;
   link.setAttribute('aria-label', `Current country: ${market.name}. Change country`);
   header.append(link);
-  for (const anchor of document.querySelectorAll('a[href="mall.html"]')) anchor.href = `mall.html?country=${code}`;
+  for (const anchor of document.querySelectorAll('a[href]')) {
+    const target = new URL(anchor.href, location.href);
+    if (target.origin === location.origin && /\/mall(?:\.html)?\/?$/.test(target.pathname)) {
+      target.searchParams.set('country', code);
+      anchor.href = target.href;
+    }
+  }
   for (const button of document.querySelectorAll('[data-href]')) button.dataset.href += `?country=${code}`;
   const heading = document.querySelector('.collection-heading h2');
   const message = document.querySelector('.collection-message');
@@ -31,3 +37,4 @@
     welcome.prepend(label);
   }
 })();
+
