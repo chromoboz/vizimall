@@ -1,5 +1,9 @@
 (() => {
   'use strict';
+  // OAuth authorization codes are one-use and must not remain in page links/history.
+  const cleanUrl = new URL(location.href);
+  for (const key of ['code', 'state', '_y', 'analytics_trace_id']) cleanUrl.searchParams.delete(key);
+  if (cleanUrl.href !== location.href) history.replaceState(null, '', cleanUrl.href);
   const status = document.querySelector('#account-status'), content = document.querySelector('#account-content');
   const country = new URLSearchParams(location.search).get('country');
   const back = document.querySelector('a[href="mall.html"]');

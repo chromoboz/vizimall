@@ -18,7 +18,7 @@ Blobs are site-scoped, strongly consistent and in Frankfurt. Production and depl
 
 ## Moderation and support ownership
 
-Set Functions environment variable `VIZIMALL_MODERATOR_CUSTOMER_IDS` to the owner's authenticated Shopify customer ID, e.g. `gid://shopify/Customer/123`. Never use an arbitrary client parameter or a browser-stored admin flag. Unconfigured moderation fails closed: reviews remain pending and customer support requests remain saved. Owner uses the account screen's moderation/support inbox. No customer email is sent by this implementation.
+Set Functions environment variable `VIZIMALL_MODERATOR_CUSTOMER_IDS` to the owner's authenticated Shopify customer ID, e.g. `gid://shopify/Customer/123`, or `VIZIMALL_MODERATOR_CUSTOMER_EMAILS` to the owner's verified Shopify account email. Identity comes from the authenticated Shopify API, never a request body, arbitrary client parameter or browser-stored admin flag. Unconfigured moderation fails closed: reviews remain pending and customer support requests remain saved. Owner uses the account screen's moderation/support inbox. No customer email is sent by this implementation.
 
 All submissions need an authenticated customer and verified paid purchase of the product. One canonical review exists per customer/product. Stars plus text are one review event; up to three photo uploads add a single optional bonus. All ratings are treated equally. Reviews are pending until reviewed for spam and private information. JPEG/PNG uploads are decoded/re-encoded, resized and stripped of location metadata. Edits replace photos and reset moderation. Withdrawals hide the review and clear its photos.
 

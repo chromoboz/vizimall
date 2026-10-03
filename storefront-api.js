@@ -1,7 +1,7 @@
 (function (root) {
   'use strict';
   const countries = Object.freeze({ DE: 'germany', FR: 'france', NL: 'netherlands', PL: 'poland', ES: 'spain', PT: 'portugal', IT: 'italy', GR: 'greece' });
-  const stores = Object.freeze(['tech', 'home', 'pets', 'beauty', 'fashion', 'kids']);
+  const stores = Object.freeze(['tech', 'home', 'pets', 'beauty', 'fashion', 'kids', 'auto']);
   function routing(country, store) {
     if (!Object.hasOwn(countries, country) || !stores.includes(store)) throw new Error('Please select a country and store from the mall.');
     return { countryTag: `country-${countries[country]}`, storeTag: `store-${store}` };

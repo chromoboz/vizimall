@@ -16,7 +16,7 @@ function mock(respond) {
     return { ok: true, json: async () => respond(JSON.parse(options.body)) };
   });
 }
-test('All 48 country/store routes require both exact tags', () => {
+test('All 56 country/store routes require both exact tags', () => {
   for (const country of Object.keys(api.countries)) for (const store of api.stores) {
     const { countryTag, storeTag } = api.routing(country, store);
     assert.ok(api.matches({ tags: [countryTag, storeTag] }, country, store));
@@ -26,7 +26,9 @@ test('All 48 country/store routes require both exact tags', () => {
   }
   assert.ok(api.matches({ tags: ['country-germany','country-france','store-tech','store-home'] }, 'FR','home'));
   assert.throws(() => api.routing('GB','tech'));
-  assert.throws(() => api.routing('DE','auto'));
+  assert.throws(() => api.routing('DE','unknown'));
+  assert.equal(api.routing('DE', 'auto').storeTag, 'store-auto');
+  assert.equal(api.matches({ tags: ['country-germany', 'store-fashion'] }, 'DE', 'auto'), false);
 });
 test('Rejects secret tokens and untrusted endpoints', () => {
   for (const publicToken of ['', 'shpat_secret', 'shpca_secret', 'shpss_secret', 'shppa_secret']) assert.throws(() => api.createClient({ ...config, publicToken }));

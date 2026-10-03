@@ -88,7 +88,7 @@ return async function handler(req, context = {}) {
       if (review.status !== 'approved') {
         if (!signed) return json({ error: 'Photo unavailable' }, 404);
         const { customer } = await dataProvider(signed.token);
-        if (customer.id !== review.customerId && !moderator(customer.id)) return json({ error: 'Photo unavailable' }, 404);
+        if (customer.id !== review.customerId && !moderator(customer)) return json({ error: 'Photo unavailable' }, 404);
       }
       const index = Number(url.searchParams.get('photo'));
       if (!Number.isInteger(index) || index < 0 || !review.photos[index]) return json({ error: 'Photo unavailable' }, 404);
@@ -100,7 +100,7 @@ return async function handler(req, context = {}) {
     if (action === 'account' && req.method === 'GET') {
       const coins = await reconcile(db, customer.id, orders), reviews = await ownReviews(db, customer.id);
       return json({ ...data, reviews: reviews.map(review => ({ ...publicReview(review), status: review.status, productId: review.productId, orderId: review.orderId })),
-        coins, nativeAccount, moderator: moderator(customer.id), policy: { active: coinPolicy.enabled } });
+        coins, nativeAccount, moderator: moderator(customer), policy: { active: coinPolicy.enabled } });
     }
     if (action === 'reviews' && req.method === 'POST') {
       await limit(db, `review:${customer.id}`, 20, 86400000);
@@ -113,7 +113,7 @@ return async function handler(req, context = {}) {
       const key = `favourites/${hash(customer.id)}`;
       if (req.method === 'GET') return json({ items: (await db.get(key, { type: 'json' }))?.items || [] });
       const input = await body(req, 3000);
-      const countries = ['DE', 'FR', 'NL', 'PL', 'ES', 'PT', 'IT', 'GR'], stores = ['tech', 'home', 'pets', 'beauty', 'fashion', 'kids'];
+      const countries = ['DE', 'FR', 'NL', 'PL', 'ES', 'PT', 'IT', 'GR'], stores = ['tech', 'home', 'pets', 'beauty', 'fashion', 'kids', 'auto'];
       if (!/^gid:\/\/shopify\/Product\/\d+$/.test(input.productId || '') || !countries.includes(input.country) || !stores.includes(input.store)
         || typeof input.title !== 'string' || input.title.length > 250 || !['add', 'remove'].includes(input.action)) throw new Error('Invalid favourite');
       await limit(db, `favourites:${customer.id}`, 200, 3600000);
@@ -138,7 +138,7 @@ return async function handler(req, context = {}) {
       await db.setJSON(`support/${id.replace('.', '/')}`, { id, reference, orderId: input.orderId || null, text, reply: null, status: 'open', createdAt: new Date().toISOString() }, { onlyIfNew: true });
       return json({ reference }, 201);
     }
-    if (action === 'support-admin' && moderator(customer.id)) {
+    if (action === 'support-admin' && moderator(customer)) {
       if (req.method === 'GET') { const { blobs } = await db.list({ prefix: 'support/' }); return json({ tickets: await Promise.all(blobs.map(entry => db.get(entry.key, { type: 'json' }))) }); }
       const input = await body(req, 10000), reply = String(input.reply || '').trim();
       if (!/^[a-f0-9]{64}\.[A-Za-z0-9_-]{43}$/.test(input.id || '') || reply.length < 5 || reply.length > 2000) throw new Error('Invalid reply');
@@ -154,7 +154,7 @@ return async function handler(req, context = {}) {
       await reconcile(db, customer.id, orders);
       return json({ status: 'withdrawn' });
     }
-    if (action === 'moderation' && moderator(customer.id)) {
+    if (action === 'moderation' && moderator(customer)) {
       if (req.method === 'GET') {
         const { blobs } = await db.list({ prefix: 'reviews/' });
         const reviews = (await Promise.all(blobs.map(entry => db.get(entry.key, { type: 'json' })))).filter(review => review?.status === 'pending');
@@ -178,4 +178,9 @@ return async function handler(req, context = {}) {
 export default createHandler();
 import { createHash } from 'node:crypto';
 function hashBuffer(value) { return createHash('sha256').update(value).digest('base64url'); }
-function moderator(id) { return (process.env.VIZIMALL_MODERATOR_CUSTOMER_IDS || '').split(',').map(value => value.trim()).includes(id); }
+function moderator(customer) {
+  const ids = (process.env.VIZIMALL_MODERATOR_CUSTOMER_IDS || '').split(',').map(value => value.trim());
+  const emails = (process.env.VIZIMALL_MODERATOR_CUSTOMER_EMAILS || '').split(',').map(value => value.trim().toLowerCase()).filter(Boolean);
+  // Email comes only from the authenticated Shopify Customer Account API, never the request body.
+  return ids.includes(customer.id) || emails.includes(customer.emailAddress?.emailAddress?.toLowerCase());
+}
