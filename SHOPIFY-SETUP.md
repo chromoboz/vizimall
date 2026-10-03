@@ -22,9 +22,10 @@ ikisi de eşleşmelidir. Bir üründe birden çok ülke veya mağaza tag'i olabi
 `store-tech`, `store-home`, `store-pets`, `store-beauty`, `store-fashion`, `store-kids`
 
 Örnek: Almanya'daki teknoloji mağazası için `country-germany` + `store-tech`.
-Ülke tag’i, ürünün gerçekten o ülkedeki stoktan gönderildiği doğrulanınca eklenir.
-Hazırlama süresi dahil teslimat hedefi 3–6 gündür; başka ülkeden gönderim bu kurala uymaz.
-Her ilave ülke tag’i için ayrı yerel stok ve teslimat doğrulaması gerekir.
+Ülke tag’i, o ülkeye hazırlama süresi dahil 3–7 günlük teslimat doğrulanınca eklenir.
+Başka ülkedeki depodan gönderim de bu süreyi karşılıyorsa kullanılabilir.
+Her ilave ülke tag’i için stok, hazırlama süresi ve hedef ülkenin teslimat süresi ayrı doğrulanır.
+İş günü ile takvim günü ayrımını ürünün teslimat açıklamasında açıkça belirtin.
 Çocuk kitabı/oyuncak için ülke tag’i + `store-kids` kullanın. Kitabın dilini,
 yaş aralığını ve oyuncakların üretici güvenlik bilgilerini ürün açıklamasına ekleyin.
 
@@ -50,6 +51,12 @@ mevcut My account bağlantısı Shopify müşteri hesabına gider.
 Shopify Payments/diğer ödeme sağlayıcısı, kargo bölgeleri ve işletme bilgilerinin
 Shopify tarafında tamamlanması gerekir. Tag'ler teslimat/kargo ayarı oluşturmaz.
 Site bağlantısının çalışması tek başına gerçek ödeme kabulünün hazır olduğunu doğrulamaz.
+
+Gezilen AVM ülkesi ile teslimat adresi ayrı kavramlardır. Almanya AVM’sinden alışveriş
+yapan bir müşteri Yunanistan adresi girebilir; bu rotada gönderim daha uzun sürebilir
+veya mevcut olmayabilir. Mağaza, ürün ve sepet bu ayrımı açıklar. Kargo seçenekleri
+girilen adrese göre Shopify checkout’ta hesaplanır; ürün tag’leri başka ülkeye
+gönderim izni veya kesin teslimat süresi oluşturmaz.
 
 ## Bağlantı ve güvenlik
 

@@ -62,7 +62,10 @@
     }
     if (!description.textContent.trim()) description.textContent = detail.description;
     details.append(description);
-    if (delivery.children.length === 1) delivery.append(element('p', '', 'Available delivery options and estimated arrival are shown at checkout.'));
+    if (delivery.children.length === 1) delivery.append(element('p', '', 'Delivery time depends on the product and destination. Enter your delivery address at checkout to check available shipping options.'));
+    const listedCountries = Object.entries(api.countries).filter(([, slug]) => detail.tags?.includes(`country-${slug}`)).map(([code]) => window.VIZIMALL_MARKETS[code].name);
+    if (listedCountries.length) delivery.append(element('p', '', `Listed destinations: ${listedCountries.join(', ')}.`));
+    delivery.append(element('p', 'destination-note', 'Delivery estimates apply to the destinations stated for this product. Shipping to another country may take longer or be unavailable. Enter your delivery address at checkout to check shipping options.'));
     return { details, delivery };
   }
   function validLine(line) {
@@ -146,7 +149,7 @@
       updateTotals();
       pay.disabled = !cart.length;
     }
-    modal.append(contents, element('p', 'checkout-note', 'Final prices, shipping and taxes are calculated in Shopify checkout. You can check out as a guest.'), status, pay);
+    modal.append(contents, element('p', 'checkout-note', `You are shopping the ${market.name} collection. Your delivery address can be in another country, but delivery may take longer or be unavailable. Shipping options, final prices and taxes are calculated in Shopify checkout. You can check out as a guest.`), status, pay);
     render();
   }
   async function showProduct(item) {
@@ -294,6 +297,10 @@
   }
   const panel = document.querySelector('.product-panel');
   if (!panel || !api.stores.includes(store)) return;
+  const destinationNotice = element('aside', 'destination-notice');
+  destinationNotice.setAttribute('aria-label', 'Delivery destination');
+  destinationNotice.append(element('strong', '', `Shopping ${market.name}, delivering elsewhere?`), element('p', '', 'The mall you browse is separate from your delivery address. A 3–7 day estimate applies only where confirmed for the product. Other destinations may take longer or be unavailable; check shipping options with your address at checkout.'));
+  panel.before(destinationNotice);
   const grid = panel.querySelector('.product-grid');
   const message = panel.querySelector('.collection-message');
   const count = panel.querySelector('.collection-heading > span');
