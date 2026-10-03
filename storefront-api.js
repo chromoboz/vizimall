@@ -35,7 +35,7 @@
       } finally { clearTimeout(timer); }
     }
     const productFields = 'id title description tags availableForSale featuredImage { url altText } priceRange { minVariantPrice { amount currencyCode } }';
-    const variantFields = 'id title availableForSale price { amount currencyCode } image { url altText }';
+    const variantFields = 'id title selectedOptions { name value } availableForSale price { amount currencyCode } image { url altText }';
     async function products(country, store, after = null) {
       const { countryTag, storeTag } = routing(country, store);
       const data = await request(`query Products($country: CountryCode!, $filter: String!, $after: String) @inContext(country: $country) {
@@ -51,7 +51,7 @@
       let after = null, item, variants = [];
       do {
         const data = await request(`query Product($country: CountryCode!, $id: ID!, $after: String) @inContext(country: $country) {
-          product(id: $id) { ${productFields} variants(first: 100, after: $after) {
+          product(id: $id) { ${productFields} descriptionHtml images(first: 250) { nodes { url altText } } variants(first: 100, after: $after) {
             nodes { ${variantFields} } pageInfo { hasNextPage endCursor }
           } }
         }`, { country, id, after });
@@ -62,7 +62,7 @@
         if (page.hasNextPage && (!page.endCursor || page.endCursor === after)) throw new Error('Unable to load all product options.');
         after = page.hasNextPage ? page.endCursor : null;
       } while (after);
-      return { ...item, variants };
+      return { ...item, images: item.images?.nodes || [], variants };
     }
     async function checkout(country, lines) {
       if (!Object.hasOwn(countries, country) || !Array.isArray(lines) || !lines.length || lines.length > 50) throw new Error('Please review your cart.');

@@ -34,6 +34,37 @@
     } catch { node.alt = `Image unavailable: ${title}`; }
     return node;
   }
+  function productInformation(detail) {
+    const details = element('section', 'product-information');
+    details.append(element('h3', '', 'Product details'));
+    const delivery = element('section', 'delivery-information');
+    delivery.setAttribute('aria-label', 'Delivery information');
+    delivery.append(element('h3', '', 'Delivery'));
+    const description = element('div', 'product-description');
+    const parsed = new DOMParser().parseFromString(detail.descriptionHtml || '', 'text/html');
+    const allowed = new Set(['P', 'UL', 'OL', 'LI', 'STRONG', 'B', 'EM', 'BR']);
+    function clean(node, target) {
+      if (node.nodeType === Node.TEXT_NODE) { target.append(document.createTextNode(node.textContent)); return; }
+      if (node.nodeType !== Node.ELEMENT_NODE || ['SCRIPT', 'STYLE', 'IFRAME', 'OBJECT'].includes(node.tagName)) return;
+      const safe = allowed.has(node.tagName) ? element(node.tagName.toLowerCase()) : document.createDocumentFragment();
+      for (const child of node.childNodes) clean(child, safe);
+      target.append(safe);
+    }
+    for (const node of parsed.body.childNodes) {
+      if (node.nodeType === Node.ELEMENT_NODE && node.tagName === 'P' && /^Dispatched from /i.test(node.textContent.trim())) {
+        const text = node.textContent.trim();
+        const estimate = text.match(/Estimated delivery:\s*([^.]*)\./i);
+        if (estimate) {
+          delivery.append(element('p', 'delivery-estimate', estimate[1]));
+          delivery.append(element('p', '', text.replace(estimate[0], '').replace(/\s+/g, ' ').trim()));
+        } else clean(node, delivery);
+      } else clean(node, description);
+    }
+    if (!description.textContent.trim()) description.textContent = detail.description;
+    details.append(description);
+    if (delivery.children.length === 1) delivery.append(element('p', '', 'Available delivery options and estimated arrival are shown at checkout.'));
+    return { details, delivery };
+  }
   function validLine(line) {
     return line && /^gid:\/\/shopify\/ProductVariant\/\d+$/.test(line.variantId) && /^gid:\/\/shopify\/Product\/\d+$/.test(line.productId)
       && api.stores.includes(line.store) && Number.isInteger(line.quantity) && line.quantity > 0 && line.quantity <= 99
@@ -119,7 +150,7 @@
     render();
   }
   async function showProduct(item) {
-    const modal = dialog(item.title);
+      const modal = dialog(item.title);
     const content = element('div', 'product-detail');
     const status = element('p', 'commerce-status', 'Loading product options…');
     status.setAttribute('role', 'status');
@@ -127,9 +158,69 @@
     try {
       const detail = await client.product(country, store, item.id);
       if (!modal.isConnected) return;
-      content.replaceChildren(image(detail.featuredImage, detail.title));
+      const photos = [...detail.images, detail.featuredImage, ...detail.variants.map(v => v.image)]
+        .filter((photo, index, all) => /^https:\/\//i.test(photo?.url || '') && all.findIndex(p => p?.url === photo.url) === index);
+      const gallery = element('section', 'product-gallery');
+      gallery.setAttribute('aria-label', `${detail.title} photos`);
+      const mainImage = image(photos[0], detail.title);
+      mainImage.loading = 'eager';
+      const counter = element('p', 'gallery-counter');
+      counter.setAttribute('aria-live', 'polite');
+      let photoIndex = 0;
+      const enlarge = button('', () => {
+        const viewer = dialog(`${detail.title} · Photo ${photoIndex + 1}`);
+        viewer.classList.add('photo-viewer');
+        viewer.append(image(photos[photoIndex], detail.title));
+      }, 'gallery-enlarge');
+      enlarge.setAttribute('aria-label', `Enlarge photo of ${detail.title}`);
+      mainImage.draggable = false;
+      enlarge.append(mainImage);
+      const stage = element('div', 'gallery-stage');
+      const previousPhoto = button('‹', () => choosePhoto((photoIndex - 1 + photos.length) % photos.length), 'gallery-arrow gallery-previous');
+      const nextPhoto = button('›', () => choosePhoto((photoIndex + 1) % photos.length), 'gallery-arrow gallery-next');
+      previousPhoto.setAttribute('aria-label', 'Previous photo'); nextPhoto.setAttribute('aria-label', 'Next photo');
+      previousPhoto.hidden = nextPhoto.hidden = photos.length < 2;
+      stage.append(enlarge, previousPhoto, nextPhoto);
+      let swipeStart = null, suppressEnlarge = false;
+      stage.addEventListener('pointerdown', event => { suppressEnlarge = false; if (event.pointerType !== 'mouse') swipeStart = { x: event.clientX, y: event.clientY }; });
+      stage.addEventListener('pointerup', event => {
+        if (!swipeStart || photos.length < 2) return;
+        const dx = event.clientX - swipeStart.x, dy = event.clientY - swipeStart.y;
+        swipeStart = null;
+        if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) {
+          suppressEnlarge = true;
+          choosePhoto((photoIndex + (dx < 0 ? 1 : -1) + photos.length) % photos.length);
+        }
+      });
+      stage.addEventListener('pointercancel', () => { swipeStart = null; });
+      enlarge.addEventListener('click', event => { if (suppressEnlarge) { event.stopImmediatePropagation(); suppressEnlarge = false; } }, { capture: true });
+      const thumbnails = element('div', 'gallery-thumbnails');
+      thumbnails.setAttribute('aria-label', 'Choose a product photo');
+      const photoButtons = photos.map((photo, index) => {
+        const thumb = button('', () => choosePhoto(index), 'gallery-thumbnail');
+        thumb.setAttribute('aria-label', `Show photo ${index + 1} of ${photos.length}`);
+        thumb.append(image(photo, `${detail.title} · Photo ${index + 1}`));
+        thumbnails.append(thumb);
+        return thumb;
+      });
+      function choosePhoto(index) {
+        photoIndex = index;
+        mainImage.src = photos[index].url;
+        mainImage.alt = `${detail.title} · Photo ${index + 1}`;
+        counter.textContent = `Photo ${index + 1} of ${photos.length} · Click to enlarge`;
+        photoButtons.forEach((thumb, i) => thumb.setAttribute('aria-pressed', String(i === index)));
+        const active = photoButtons[index];
+        thumbnails.scrollTo({ left: Math.max(0, active.offsetLeft - thumbnails.offsetLeft - thumbnails.clientWidth / 2 + active.clientWidth / 2), behavior: 'smooth' });
+      }
+      gallery.append(stage, counter, thumbnails);
+      if (photos.length) choosePhoto(0);
+      else { enlarge.disabled = true; counter.textContent = 'Photos are currently unavailable.'; }
+      content.replaceChildren(gallery);
       const copy = element('div', 'product-detail-copy');
-      copy.append(element('p', 'product-description', detail.description));
+      const price = element('p', 'detail-price');
+      const selectedOption = element('p', 'selected-option');
+      const information = productInformation(detail);
+      copy.append(element('p', 'detail-eyebrow', `${market.name} collection`), price);
       const selectLabel = element('label', '', 'Choose an option');
       const select = element('select', 'variant-select');
       const selectId = `variant-${detail.id.split('/').pop()}`;
@@ -140,6 +231,47 @@
       }
       const available = detail.variants.find(v => v.availableForSale);
       if (available) select.value = available.id;
+      const optionGroups = new Map();
+      for (const variant of detail.variants) for (const option of variant.selectedOptions || []) {
+        if (option.name === 'Title' && option.value === 'Default Title') continue;
+        if (!optionGroups.has(option.name)) optionGroups.set(option.name, new Set());
+        optionGroups.get(option.name).add(option.value);
+      }
+      const optionButtons = [];
+      for (const [name, values] of optionGroups) {
+        const group = element('fieldset', 'product-options');
+        group.append(element('legend', '', name));
+        const choices = element('div', 'option-choices');
+        for (const value of values) {
+          const eligible = detail.variants.filter(v => v.selectedOptions?.some(o => o.name === name && o.value === value));
+          const choice = button('', () => {
+            const current = detail.variants.find(v => v.id === select.value);
+            const next = eligible.find(v => v.availableForSale && v.selectedOptions.every(o => o.name === name || current?.selectedOptions?.some(c => c.name === o.name && c.value === o.value)))
+              || eligible.find(v => v.availableForSale);
+            if (next) { select.value = next.id; showVariantPhoto(); }
+          }, 'option-choice');
+          choice.setAttribute('aria-label', `Choose ${name}: ${value}`);
+          choice.disabled = !eligible.some(v => v.availableForSale);
+          if (/colou?r/i.test(name)) {
+            const source = eligible.find(v => v.image)?.image;
+            if (source) choice.append(image(source, value));
+          }
+          choice.append(element('span', '', value));
+          choices.append(choice); optionButtons.push({ choice, name, value });
+        }
+        group.append(choices); copy.append(group);
+      }
+      function showVariantPhoto() {
+        const variant = detail.variants.find(v => v.id === select.value);
+        const index = photos.findIndex(photo => photo.url === variant?.image?.url);
+        if (index >= 0) choosePhoto(index);
+        else if (photos.length) choosePhoto(0);
+        price.textContent = variant ? money(variant.price) : '';
+        selectedOption.textContent = variant && variant.title !== 'Default Title' ? `Selected: ${variant.title}` : '';
+        optionButtons.forEach(({ choice, name, value }) => choice.setAttribute('aria-pressed', String(variant?.selectedOptions?.some(o => o.name === name && o.value === value) || false)));
+        if (typeof add !== 'undefined') { add.disabled = !variant?.availableForSale; add.textContent = variant?.availableForSale ? 'Add to bag' : 'Sold out'; }
+      }
+      select.addEventListener('change', showVariantPhoto);
       const add = button(available ? 'Add to bag' : 'Sold out', () => {
         const variant = detail.variants.find(v => v.id === select.value && v.availableForSale);
         if (!variant) return;
@@ -152,8 +284,12 @@
       });
       add.disabled = !available;
       status.textContent = '';
-      copy.append(selectLabel, select, add, button('View bag', () => { modal.close(); showCart(); }, 'commerce-secondary'), status);
-      content.append(copy);
+      selectLabel.hidden = select.hidden = optionGroups.size > 0 || detail.variants.length < 2;
+      const purchaseActions = element('div', 'purchase-actions');
+      purchaseActions.append(add, button('View bag', () => { modal.close(); showCart(); }, 'commerce-secondary'));
+      copy.append(selectLabel, select, selectedOption, purchaseActions, status, information.delivery);
+      content.append(copy, information.details);
+      showVariantPhoto();
     } catch (error) { status.textContent = error.message; }
   }
   const panel = document.querySelector('.product-panel');

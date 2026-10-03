@@ -46,6 +46,16 @@ test('Loads every variant page', async () => {
   const result = await client.product('DE','tech',productId);
   assert.equal(result.variants.length, 2);
 });
+test('Product details return the complete photo gallery while keeping variant photos', async () => {
+  const photos = [{ url: 'https://cdn.shopify.com/first.jpg', altText: 'Front' }, { url: 'https://cdn.shopify.com/second.jpg', altText: 'Detail' }];
+  const client = mock(({ query }) => {
+    assert.match(query, /images\(first: 250\)/);
+    return { data: { product: { ...item, images: { nodes: photos }, variants: { ...item.variants, nodes: [{ ...variant, image: photos[1] }] } } } };
+  });
+  const result = await client.product('DE','tech',productId);
+  assert.deepEqual(result.images, photos);
+  assert.equal(result.variants[0].image.url, photos[1].url);
+});
 test('Checkout validates tags and variants, then uses Shopify cart and buyer country', async () => {
   let mutation = false;
   const client = mock(({ query, variables }) => {
