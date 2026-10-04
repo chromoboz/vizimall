@@ -81,7 +81,7 @@
   } catch {}
   function save() {
     try { localStorage.setItem(storageKey, JSON.stringify(cart)); } catch {}
-    cartButton.textContent = `Bag (${cart.reduce((n, l) => n + l.quantity, 0)})`;
+    renderBag(cart.reduce((n, l) => n + l.quantity, 0));
   }
   function dialog(title) {
     const node = element('dialog', 'commerce-dialog');
@@ -92,6 +92,15 @@
     node.addEventListener('close', () => node.remove(), { once: true });
     node.showModal();
     return node;
+  }
+  function renderBag(count) {
+    if (!document.body.classList.contains('mall-page')) { cartButton.textContent = `Bag (${count})`; return; }
+    cartButton.setAttribute('aria-label', `Open bag (${count} items)`);
+    cartButton.title = 'Your bag';
+    const icon = element('span','bag-icon');
+    icon.innerHTML = '<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M5 8h14l1 13H4L5 8Z"/><path d="M8 9V6a4 4 0 0 1 8 0v3"/></svg>';
+    const badge = element('span','bag-count',String(count)); badge.hidden = count === 0; badge.setAttribute('aria-hidden','true');
+    cartButton.replaceChildren(icon,badge);
   }
   const cartButton = button('Bag (0)', showCart, 'cart-toggle');
   document.body.append(cartButton);

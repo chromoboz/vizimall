@@ -66,3 +66,11 @@ Validated by `node --test audience.test.mjs customer.test.mjs storefront-api.tes
 The profile back arrow accepts only same-origin mall/store/map paths and active countries. All existing orders/reviews/favourites/support/owner tabs remain available. Cart moves to the document bottom-right; cookie height keeps it clear of the banner. Home uses normal document scrolling. Mall layout releases the fixed-body lock, and touch direction distinguishes vertical page movement from horizontal panorama dragging.
 
 31 automated tests pass, including actual Sharp photo re-encoding, per-customer isolation, session-bound name writes and rejected foreign-origin mutations. Local browser tests verify name/photo persistence, account tabs, country-preserving back navigation, cart opening and real document scrolling. The browser viewport override did not take effect (actual viewport remained 1265 × 720); narrow-screen layout is implemented but actual mobile touch behavior must also be checked on a device. No real customer name was changed during tests.
+
+## Mall-only layout correction (4 October 2026)
+
+The later user instruction replaces the mall scroll behavior above: only `.mall-page` is now a fixed, full-viewport scene with vertical document movement disabled. Map, profile and product pages keep their scrolling. The injected footer is omitted on the mall; other pages retain Help/returns, privacy, email signup and Cookie preferences. First-visit cookie choice still runs on the mall, and later preference changes remain available on the profile/privacy pages. No consent state or tracking defaults changed.
+
+The mall bag is a 46px icon button with an accessible item-count label and a nonzero count badge. On narrow screens the hint sits at bottom left; bag is bottom right with safe-area and cookie-panel clearance. Existing country/profile navigation and stock-checked checkout stay unchanged.
+
+Checks: seven relevant audience tests passed; browser DOM/native interaction at 894×668 and 390×844 verified zero vertical scrolling, preserved horizontal movement, no footer, non-overlapping hint/bag and bag dialog opening. The 390px browser test is responsive layout and pointer input, not a physical phone touch test.

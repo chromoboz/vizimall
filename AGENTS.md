@@ -27,3 +27,5 @@ User instruction, 3 October 2026:
 Shopify products 16115791298894, 16115790577998 and 16115788611918 were archived on 3 October 2026 because of China dispatch. Do not reactivate without new verified local fulfillment evidence and user authorization.
 
 
+
+Latest user correction (4 October 2026): mall only is a fixed scene without vertical document scrolling or the injected footer links. Preserve home/profile/store scrolling. Use a small accessible bag icon at bottom right, clear of the panorama hint; keep horizontal dragging and cookie choice available. Other pages retain footer preference management.

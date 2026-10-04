@@ -6,7 +6,7 @@
   const make = (tag, text) => { const node = document.createElement(tag); if (text) node.textContent = text; return node; };
   const footer = make('footer'); footer.className = 'vizi-footer';
   for (const [title, href] of [['Help & returns','help.html'],['Privacy & cookies','privacy.html'],['Email updates','newsletter.html']]) { const link = make('a', title); link.href = href; footer.append(link); }
-  const manage = make('button','Cookie preferences'); manage.type = 'button'; footer.append(manage); document.body.append(footer);
+  const manage = make('button','Cookie preferences'); manage.type = 'button'; footer.append(manage); const inMall=String(document.body.className||'').split(/\s+/).includes('mall-page'); if(!inMall)document.body.append(footer);
   const panel = make('section'); panel.className = 'consent-panel'; panel.hidden = Boolean(choice); panel.setAttribute('role','region'); panel.setAttribute('aria-label','Cookie preferences');
   panel.append(make('h2','Your privacy choices'),make('p','Essential storage keeps your bag, country choice and secure sign-in working. Optional visit measurement runs only if you agree. We do not use advertising trackers or collect email addresses from cookies.'));
   const notice = make('a','Read privacy & cookie information'); notice.href = 'privacy.html'; panel.append(notice);
@@ -28,7 +28,7 @@
     panel.hidden=true; options.hidden=true; save.hidden=true; settings.hidden=false;
     keepClear();
     feedback.textContent = analytics ? 'Optional measurement allowed. You can change this at any time.' : 'Optional measurement off. Shopping remains available.';
-    manage.focus(); if (analytics) measure();
+    if(!inMall)manage.focus(); if (analytics) measure();
   }
   accept.onclick=()=>choose(true); reject.onclick=()=>choose(false); save.onclick=()=>choose(checkbox.checked);
   settings.onclick=()=>{ options.hidden=false; save.hidden=false; settings.hidden=true; keepClear(); };
