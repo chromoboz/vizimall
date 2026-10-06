@@ -14,7 +14,7 @@
     try { const url = new URL(href); if (url.protocol !== 'https:' || url.username || url.password) return node('span', text); const item = link(text, url.href); item.rel = 'noopener noreferrer'; item.target = '_blank'; return item; }
     catch { return node('span', text); }
   }
-  const money = price => new Intl.NumberFormat('en', { style: 'currency', currency: price.currencyCode }).format(Number(price.amount));
+  const money = price => new Intl.NumberFormat(document.documentElement.lang||'en', { style: 'currency', currency: price.currencyCode }).format(Number(price.amount));
   async function request(path, input) {
     const response = await fetch(`/api/${path}`, { credentials: 'same-origin', cache: 'no-store',
       ...(input ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) } : {}) });
@@ -65,19 +65,19 @@
         coins.append(node('h3', `${data.coins.balance} VIZI Coin`)); const next = data.coins.rewards.find(reward => reward.coins > data.coins.balance);
         if (next) { const progress = node('progress', undefined, 'coin-progress'); progress.max = next.coins; progress.value = data.coins.balance; coins.append(progress, node('p', `${next.coins - data.coins.balance} coins to the €${next.discountEuro} reward.`)); }
         coins.append(node('p', data.coins.redemptionEnabled ? 'Available rewards are listed below.' : 'Reward redemption is not open yet.', 'account-muted'));
-        for (const event of data.coins.ledger) coins.append(node('p', `${event.delta > 0 ? '+' : ''}${event.delta} · ${event.event.startsWith('order:') ? 'Shopping' : 'Review'} · ${new Date(event.at).toLocaleDateString()}`, 'account-muted'));
+        for (const event of data.coins.ledger) coins.append(node('p', `${event.delta > 0 ? '+' : ''}${event.delta} · ${event.event.startsWith('order:') ? 'Shopping' : 'Review'} · ${new Date(event.at).toLocaleDateString(document.documentElement.lang)}`, 'account-muted'));
       } else coins.append(node('p', 'VIZI Coin is being prepared. Earning rates and rewards will be published before the programme opens. No coins or discounts are being issued yet.', 'account-muted'));
       const orders = card('Orders & delivery', 'orders'); orders.classList.add('account-wide'); grid.append(orders);
       if (!data.orders.length) orders.append(node('p', 'You have no orders yet. Your orders and delivery updates will appear here after your first purchase.'));
       for (const order of data.orders) {
         const details = node('details', undefined, 'account-card'); details.append(node('summary', `${order.name} · ${money(order.totalPrice)} · ${order.fulfillmentStatus.replaceAll('_', ' ').toLowerCase()}`));
-        details.append(node('p', `${new Date(order.processedAt).toLocaleDateString()} · Payment: ${order.financialStatus?.replaceAll('_', ' ').toLowerCase() || 'Awaiting confirmation'}`));
+        details.append(node('p', `${new Date(order.processedAt).toLocaleDateString(document.documentElement.lang)} · Payment: ${order.financialStatus?.replaceAll('_', ' ').toLowerCase() || 'Awaiting confirmation'}`));
         if (order.cancelledAt) details.append(node('p', 'This order was cancelled.'));
         if (order.shippingAddress) details.append(node('p', `Delivery address: ${order.shippingAddress.formatted.join(', ')}`));
         if (!order.fulfillments.nodes.length) details.append(node('p', 'A tracking link will appear when the seller dispatches your order.'));
         for (const shipment of order.fulfillments.nodes) {
           details.append(node('p', `Delivery update: ${(shipment.latestShipmentStatus || shipment.status || 'Pending').replaceAll('_', ' ').toLowerCase()}`));
-          if (shipment.estimatedDeliveryAt) details.append(node('p', `Estimated arrival: ${new Date(shipment.estimatedDeliveryAt).toLocaleDateString()}`));
+          if (shipment.estimatedDeliveryAt) details.append(node('p', `Estimated arrival: ${new Date(shipment.estimatedDeliveryAt).toLocaleDateString(document.documentElement.lang)}`));
           for (const tracking of shipment.trackingInformation) details.append(tracking.url ? safeLink(`${tracking.company || 'Carrier'} · ${tracking.number || 'Track parcel'}`, tracking.url) : node('p', `${tracking.company || 'Carrier'} · ${tracking.number || 'Tracking pending'}`));
         }
         for (const line of order.lineItems.nodes) {

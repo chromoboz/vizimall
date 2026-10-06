@@ -83,7 +83,7 @@
       } while (after);
       return { ...item, images: item.images?.nodes || [], variants };
     }
-    async function checkout(country, lines) {
+    async function checkout(country, lines, browsingCountry = lines[0]?.browsingCountry || country) {
       if (!validDestination(country) || !Array.isArray(lines) || !lines.length || lines.length > 50) throw new Error('Please review your cart.');
       const verified = [];
       // Revalidate country/store eligibility and current stock at checkout.
@@ -96,12 +96,12 @@
         if(line.price&&(line.price.currencyCode!==variant.price?.currencyCode||Number(line.price.amount)!==Number(variant.price?.amount)))throw new Error('The checkout price changed. Please refresh the shipping quote.');
         verified.push({ merchandiseId: variant.id, quantity: line.quantity });
       });
-      const data = await request(`mutation Checkout($country: CountryCode!, $input: CartInput!) @inContext(country: $country) {
+      const data = await request(`mutation Checkout($country: CountryCode!, $language: LanguageCode!, $input: CartInput!) @inContext(country: $country, language: $language) {
         cartCreate(input: $input) {
           cart { checkoutUrl totalQuantity }
           userErrors { message } warnings { message }
         }
-      }`, { country, input: { buyerIdentity: { countryCode: country }, lines: verified, attributes: [{ key: 'vizimall-country', value: country }] } });
+      }`, { country, language: ({DE:'DE',GR:'EL',FR:'FR',IT:'IT',ES:'ES',NL:'NL',PL:'PL',PT:'PT_PT'})[browsingCountry] || 'EN', input: { buyerIdentity: { countryCode: country }, lines: verified, attributes: [{ key: 'vizimall-country', value: country }] } });
       const result = data.cartCreate;
       if (result.userErrors.length) throw new Error(result.userErrors.map(e => e.message).join(' '));
       if (result.warnings?.length) throw new Error(result.warnings.map(e => e.message).join(' ') + ' Please review your cart.');

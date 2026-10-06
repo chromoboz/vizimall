@@ -10,6 +10,7 @@
   let storageKey = `vizimall-cart-v1:${window.VIZIMALL_SHOPIFY.domain}:${shippingCountry}`;
   let client, connectionError;
   try { client = api.createClient(window.VIZIMALL_SHOPIFY); } catch (error) { connectionError = error; }
+  const tr = (key,values) => window.VizimallLocale?.t(key,values)||key;
   function element(tag, className, text) {
     const node = document.createElement(tag);
     if (className) node.className = className;
@@ -166,7 +167,7 @@
         if (quote.status !== 'available') { note.textContent='Live shipping information is temporarily unavailable. '+route.note; return; }
         destinationCodes.add(shippingCountry);setDestinations([...destinationCodes]);
         originControl.replaceChildren();
-        for (const code of quote.origins) { const option=element('option','',window.VIZIMALL_MARKETS[code]?.name||code); option.value=code; originControl.append(option); }
+        for (const code of quote.origins) { const option=element('option','',window.VizimallDestinations.name(code)); option.value=code; originControl.append(option); }
         originControl.value=quote.from; originLabel.hidden=false;
         methodControl.replaceChildren();
         quote.methods.forEach((method,index)=>{const option=element('option','',method.name);option.value=String(index);methodControl.append(option);});
@@ -177,10 +178,11 @@
         function showQuote() {
           const method=quote.methods[Number(methodControl.value)]; if(!method)return;
           table.replaceChildren();
-          const rows=[['Processing time',quote.processingHours?'Ships within '+quote.processingHours+' hours':route.processing||'Not provided by supplier'],['Estimated transport',method.transport+' days; preparation is additional'],['Warehouse stock',Number.isSafeInteger(quote.stockQuantity)?quote.stockQuantity.toLocaleString()+' remaining in '+window.VizimallDestinations.name(quote.from):'Not provided'],['CJ shipping estimate for this quantity',money(method.supplierCost)]];
-          if(quote.pricing)rows.push(['Price including standard shipping per item',money(quote.pricing.unitPrice)],['Total for '+quote.quantity+' item(s)',money(quote.pricing.lineTotal)]);
+          const rows=[['Processing time',quote.processingHours?'Ships within '+quote.processingHours+' hours':route.processing||'Not provided by supplier'],['Estimated transport',method.transport+' days; preparation is additional'],['Warehouse stock',Number.isSafeInteger(quote.stockQuantity)?quote.stockQuantity.toLocaleString(document.documentElement.lang)+' remaining in '+window.VizimallDestinations.name(quote.from):'Not provided'],['CJ shipping estimate for this quantity',money(method.supplierCost)]];
+          if(quote.pricing)rows.push(['Price including standard shipping per item',money(quote.pricing.unitPrice)],[tr('Total for {count} item(s)',{count:quote.quantity}),money(quote.pricing.lineTotal)]);
           for(const [label,value] of rows)table.append(element('dt','',label),element('dd','',value));
-          note.textContent=quote.pricing?(quote.pricing.checkoutReady?'Standard shipping is included per item.':'Shipping is available. The checkout price for this destination is being prepared; purchasing is temporarily unavailable.')+' CJ checked '+new Date(quote.checkedAt).toLocaleTimeString()+'. Preparation and transport are separate estimates.': 'CJ estimate for '+quote.quantity+' item(s), checked '+new Date(quote.checkedAt).toLocaleTimeString()+'. Final checkout charge is not yet verified.';
+          const checkedTime=new Date(quote.checkedAt).toLocaleTimeString(document.documentElement.lang);
+          note.textContent=quote.pricing?tr(quote.pricing.checkoutReady?'Standard shipping is included per item.':'Shipping is available. The checkout price for this destination is being prepared; purchasing is temporarily unavailable.')+' '+tr('CJ checked {time}. Preparation and transport are separate estimates.',{time:checkedTime}):tr('CJ estimate for {count} item(s), checked {time}. Final checkout charge is not yet verified.',{count:quote.quantity,time:checkedTime});
           delivery.dispatchEvent(new CustomEvent('vizimall-shipping-quote',{detail:{variantId,quote},bubbles:true}));
         }
         methodControl.onchange=showQuote;showQuote();
@@ -262,7 +264,7 @@
           line.price=quote.pricing.unitPrice;
         }
         save();updateTotals();
-        const url = await client.checkout(shippingCountry, cart.map(line => ({ ...line })));
+        const url = await client.checkout(shippingCountry, cart.map(line => ({ ...line })), country);
         // Keep the bag when a buyer returns without completing payment.
         location.assign(url);
       } catch (error) {
@@ -277,7 +279,7 @@
       for (const line of cart) {
         const row = element('div', 'cart-line');
         const info = element('div');
-        info.append(element('h3', '', line.title), element('p', '', line.variantTitle === 'Default Title' ? '' : line.variantTitle), element('p', '', money(line.price)));
+        info.append(element('h3', 'supplier-content', line.title), element('p', 'supplier-content', line.variantTitle === 'Default Title' ? '' : line.variantTitle), element('p', '', money(line.price)));
         const quantity = element('input');
         quantity.type = 'number'; quantity.min = '1'; quantity.max = '99'; quantity.value = String(line.quantity);
         quantity.setAttribute('aria-label', `Quantity for ${line.title}`);
@@ -297,11 +299,12 @@
       updateTotals();
       pay.disabled = !cart.length;
     }
-    modal.append(contents, element('p', 'checkout-note', `You are shopping the ${market.name} collection. Your delivery address can be in another country, but delivery may take longer or be unavailable. Shipping options, final prices and taxes are calculated in Shopify checkout. You can check out as a guest.`), status, pay);
+    modal.append(contents, element('p', 'checkout-note', tr('You are shopping the {place} collection. Your delivery address can be in another country, but delivery may take longer or be unavailable. Shipping options, final prices and taxes are calculated in Shopify checkout. You can check out as a guest.',{place:window.VizimallDestinations.name(country)})), status, pay);
     render();
   }
   async function showProduct(item) {
       const modal = dialog(item.title);
+      modal.querySelector('h2').setAttribute('data-vizi-content','external');
     const content = element('div', 'product-detail');
     const status = element('p', 'commerce-status', 'Loading product options…');
     status.setAttribute('role', 'status');
@@ -321,7 +324,8 @@
       counter.setAttribute('aria-live', 'polite');
       let photoIndex = 0;
       const enlarge = button('', () => {
-        const viewer = dialog(`${detail.title} · Photo ${photoIndex + 1}`);
+        const viewer = dialog(`${detail.title} · ${window.VizimallLocale?.t('Photo {index} of {count} · Click to enlarge',{index:photoIndex+1,count:photos.length})||'Photo'}`);
+        viewer.querySelector('h2').setAttribute('data-vizi-content','external');
         viewer.classList.add('photo-viewer');
         const enlarged = image(photos[photoIndex], detail.title, 'viewer');
         enlarged.loading = 'eager';
@@ -377,13 +381,13 @@
       const stockStatus = element('p', 'product-stock');
       stockStatus.setAttribute('aria-live', 'polite');
       const information = productInformation(detail);
-      copy.append(element('p', 'detail-eyebrow', `${market.name} collection`), price);
+      copy.append(element('p', 'detail-eyebrow', window.VizimallLocale?.t('The {place} collection',{place:window.VizimallDestinations.name(country)})||`${market.name} collection`), price);
       const selectLabel = element('label', '', 'Choose an option');
       const select = element('select', 'variant-select');
       const selectId = `variant-${detail.id.split('/').pop()}`;
       select.id = selectId; selectLabel.htmlFor = selectId;
       for (const variant of detail.variants) {
-        const option = element('option', '', `${variant.title === 'Default Title' ? 'Standard' : variant.title} · ${money(variant.price)}${variant.availableForSale ? '' : ' · Sold out'}`);
+        const option = element('option', '', `${variant.title === 'Default Title' ? tr('Standard') : variant.title} · ${money(variant.price)}${variant.availableForSale ? '' : ' · '+tr('Sold out')}`);
         option.value = variant.id; option.disabled = !variant.availableForSale; select.append(option);
       }
       const available = detail.variants.find(v => v.availableForSale);
@@ -427,7 +431,7 @@
         else if (photos.length) choosePhoto(0);
         price.textContent = variant ? money(variant.price) : '';
         selectedOption.textContent = variant && variant.title !== 'Default Title' ? `Selected: ${variant.title}` : '';
-        stockStatus.textContent = !variant?.availableForSale ? 'Sold out' : variant.currentlyNotInStock ? 'Available to order · delivery may take longer' : Number.isInteger(variant.quantityAvailable) && variant.quantityAvailable > 0 ? `${variant.quantityAvailable.toLocaleString()} remaining · selected option` : 'In stock · quantity unavailable';
+        stockStatus.textContent = !variant?.availableForSale ? 'Sold out' : variant.currentlyNotInStock ? 'Available to order · delivery may take longer' : Number.isInteger(variant.quantityAvailable) && variant.quantityAvailable > 0 ? `${variant.quantityAvailable.toLocaleString(document.documentElement.lang)} remaining · selected option` : 'In stock · quantity unavailable';
         optionButtons.forEach(({ choice, name, value }) => choice.setAttribute('aria-pressed', String(variant?.selectedOptions?.some(o => o.name === name && o.value === value) || false)));
         if (typeof add !== 'undefined') { add.disabled = true; add.textContent = variant?.availableForSale ? 'Checking shipping…' : 'Sold out'; }
       }
@@ -451,7 +455,7 @@
         const quote=currentShippingQuote;
         if(!quote)price.textContent='Checking destination price…';
         if(quote?.pricing)price.textContent=money(quote.pricing.unitPrice)+' · standard shipping included';
-        if(Number.isSafeInteger(quote?.stockQuantity))stockStatus.textContent=quote.stockQuantity.toLocaleString()+' remaining in '+window.VizimallDestinations.name(quote.from);
+        if(Number.isSafeInteger(quote?.stockQuantity))stockStatus.textContent=quote.stockQuantity.toLocaleString(document.documentElement.lang)+' remaining in '+window.VizimallDestinations.name(quote.from);
         add.disabled=!quote?.pricing?.checkoutReady;
         add.textContent=quote?.pricing?.checkoutReady?'Add to bag':quote?.status==='available'?'Checkout price pending':quote?'Shipping unavailable':'Checking shipping…';
       });
@@ -496,7 +500,7 @@
     const card = element('article', 'product-card');
     const open = button('', () => showProduct(item), 'product-open');
     open.setAttribute('aria-label', 'View ' + item.title);
-    open.append(image(item.featuredImage, item.title), element('h3', '', item.title));
+    open.append(image(item.featuredImage, item.title), element('h3', 'supplier-content', item.title));
     const favourite = button('♡ Save favourite', async () => {
       favourite.disabled = true;
       try {

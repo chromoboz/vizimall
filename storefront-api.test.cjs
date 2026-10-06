@@ -88,6 +88,19 @@ test('Changed tags and sold-out variants prevent checkout mutation', async () =>
     await assert.rejects(client.checkout('DE',[line]));
   }
 });
+
+test('Checkout language follows the supplier mall while pricing and delivery follow the destination', async () => {
+  for(const[browsingCountry,language]of Object.entries({DE:'DE',GR:'EL',FR:'FR',IT:'IT',ES:'ES',NL:'NL',PL:'PL',PT:'PT_PT'})){
+    const client=mock(({query,variables})=>{
+      if(query.includes('query Product'))return{data:{product:{...item,tags:[api.routing(browsingCountry,'tech').countryTag,'store-tech']}}};
+      assert.match(query,/@inContext\(country: \$country, language: \$language\)/);
+      assert.equal(variables.language,language);
+      assert.equal(variables.input.buyerIdentity.countryCode,'US');
+      return{data:{cartCreate:{cart:{checkoutUrl:'https://example.myshopify.com/checkouts/test',totalQuantity:2},userErrors:[],warnings:[]}}};
+    });
+    await client.checkout('US',[{...line,browsingCountry}],browsingCountry);
+  }
+});
 test('Checkout reports Shopify errors, stock warnings and refuses untrusted redirects', async () => {
   for (const result of [
     { cart: null, userErrors: [{ message: 'Insufficient stock' }], warnings: [] },
