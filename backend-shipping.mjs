@@ -16,6 +16,18 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
     }
     return data.data;
   }
+  async function findVariant(sku, access) {
+    let variants;
+    try { variants=await cj('product/variant/query?variantSku='+encodeURIComponent(sku),access); }
+    catch(error){
+      if(error.supplierCode!==1600300)throw error;
+      // Some CJ deployments require a product ID for the variants endpoint.
+      const detail=await cj('product/query?variantSku='+encodeURIComponent(sku),access);
+      variants=detail?.variants;
+    }
+    const matches=Array.isArray(variants)?variants.filter(v=>v.variantSku===sku):[];
+    return matches.length===1&&matches[0].vid?matches[0]:null;
+  }
   async function token(db) {
     const key='shipping/private/token/'+hash(env.CJ_API_KEY);
     const current=await db.get(key,{type:'json'});
@@ -63,11 +75,10 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
         const origins=[...new Set((Array.isArray(stocks)?stocks:[]).filter(s=>countries[s.countryCode]&&Number(s.totalInventoryNum)>=1).map(s=>s.countryCode))];
         let value={status:'no_verified_eu_stock',origins,methods:[]};
         if(origins.length){
-          const variants=await cj('product/variant/query?variantSku='+encodeURIComponent(probeSku),access);
-          const matches=Array.isArray(variants)?variants.filter(v=>v.variantSku===probeSku):[];
-          if(matches.length!==1||!matches[0].vid)throw new Error('Supplier variant unavailable');
+          const matched=await findVariant(probeSku,access);
+          if(!matched)throw new Error('Supplier variant unavailable');
           const from=origins.includes('NL')?'NL':origins[0];
-          const options=await cj('logistic/freightCalculate',access,{startCountryCode:from,endCountryCode:'NL',products:[{vid:matches[0].vid,quantity:1}]});
+          const options=await cj('logistic/freightCalculate',access,{startCountryCode:from,endCountryCode:'NL',products:[{vid:matched.vid,quantity:1}]});
           const methods=(Array.isArray(options)?options:[]).filter(o=>typeof o.logisticName==='string'&&typeof o.logisticAging==='string'&&/^\d+(?:\s*-\s*\d+)?$/.test(o.logisticAging.trim())&&o.logisticPrice!==null&&o.logisticPrice!==''&&Number.isFinite(Number(o.logisticPrice))&&Number(o.logisticPrice)>=0).map(o=>({name:o.logisticName,transport:o.logisticAging,supplierCost:{amount:String(o.logisticPrice),currencyCode:'USD'}}));
           value={status:methods.length?'available':'unavailable',origins,from,destination:'NL',methods};
         }
@@ -94,14 +105,13 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
       const cached=await db.get(key,{type:'json'});if(cached?.expiresAt>Date.now())return reply(cached);
       await limit(db,'shipping:global',120,60000);
       const access=await token(db);
-      const variants=await cj('product/variant/query?variantSku='+encodeURIComponent(variant.sku),access);
-      const matches=Array.isArray(variants)?variants.filter(v=>v.variantSku===variant.sku):[];
-      if(matches.length!==1||!matches[0].vid)return reply({status:'not_mapped',methods:[]});
+      const matched=await findVariant(variant.sku,access);
+      if(!matched)return reply({status:'not_mapped',methods:[]});
       const stock=await cj('product/stock/queryBySku?sku='+encodeURIComponent(variant.sku),access);
       const origins=(Array.isArray(stock)?stock:[]).filter(s=>countries[s.countryCode]&&Number(s.totalInventoryNum)>=quantity).map(s=>s.countryCode);
       const from=requestedOrigin||(origins.includes(browsing)?browsing:origins.includes(destination)?destination:origins[0]);
       if(!from||!origins.includes(from))return reply({status:'unavailable',origins,methods:[]});
-      const options=await cj('logistic/freightCalculate',access,{startCountryCode:from,endCountryCode:destination,products:[{vid:matches[0].vid,quantity}]});
+      const options=await cj('logistic/freightCalculate',access,{startCountryCode:from,endCountryCode:destination,products:[{vid:matched.vid,quantity}]});
       // A quote without both a price and a transit estimate must never qualify.
       const methods=(Array.isArray(options)?options:[]).filter(o=>typeof o.logisticName==='string'&&o.logisticName.trim()&&o.logisticName.length<=200&&typeof o.logisticAging==='string'&&/^\d+(?:\s*-\s*\d+)?$/.test(o.logisticAging.trim())&&o.logisticPrice!==null&&o.logisticPrice!==''&&Number.isFinite(Number(o.logisticPrice))&&Number(o.logisticPrice)>=0).map(o=>({name:o.logisticName,transport:o.logisticAging.trim(),supplierCost:{amount:String(o.logisticPrice),currencyCode:'USD'}}));
       const value={status:methods.length?'available':'unavailable',origins,from,destination,quantity,methods,checkedAt:new Date().toISOString(),expiresAt:Date.now()+cacheMs};

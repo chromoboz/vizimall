@@ -9,13 +9,22 @@ function fixture(overrides={}){
  const calls=[];const db=database();const fetcher=async(url,options)=>{calls.push({url,body:options.body&&JSON.parse(options.body),headers:options.headers});let data;
  if(url.includes('myshopify.com'))return Response.json({data:{node:overrides.variant||variant}});
  if(url.includes('getAccessToken'))data={accessToken:'secret-token',accessTokenExpiryDate:'2099-01-01'};
- else if(url.includes('variant/query'))data=[{vid:'cj-variant',variantSku:'CJTEST-1'}];
+ else if(url.includes('variant/query')){if(overrides.variantParameterError)return Response.json({result:false,code:1600300,message:'Param error'});data=[{vid:'cj-variant',variantSku:'CJTEST-1'}];}
+ else if(url.includes('product/query'))data={variants:overrides.detailVariants||[{vid:'cj-variant',variantSku:'CJTEST-1'}]};
  else if(url.includes('stock/query'))data=overrides.stock||[{countryCode:'DE',totalInventoryNum:10},{countryCode:'CN',totalInventoryNum:100}];
  else if(url.includes('freightCalculate'))data=overrides.methods||[{logisticName:'CJPacket',logisticPrice:8.07,logisticAging:'3-5'}];
  return Response.json({result:true,code:200,data});};
  return {calls,handler:createShippingHandler({dbFactory:async()=>db,fetcher,env:{CJ_API_KEY:'test-secret'},storefrontConfig:settings,probeSku:'CJTEST-1'})};
 }
 test('Absent CJ configuration performs no supplier requests',async()=>{const handler=createShippingHandler({env:{},fetcher:()=>{throw Error('must not call')}});assert.equal((await (await handler(new Request(base))).json()).status,'not_connected');});
+test('CJ variant parameter rejection falls back to product details and still requires an exact SKU',async()=>{
+ for(const [detailVariants,expected] of [[[{vid:'cj-variant',variantSku:'CJTEST-1'}],'available'],[[{vid:'other',variantSku:'CJOTHER'}],'not_mapped']]){
+   const {handler,calls}=fixture({variantParameterError:true,detailVariants});
+   const result=await (await handler(new Request(base))).json();assert.equal(result.status,expected);
+   assert.ok(calls.some(c=>c.url.includes('product/query?variantSku=CJTEST-1')));
+   if(expected==='not_mapped')assert.ok(!calls.some(c=>c.url.includes('freightCalculate')));
+ }
+});
 test('Connection check validates supplier authentication without disclosing credentials',async()=>{
  const {handler,calls}=fixture();const response=await handler(new Request('https://vizimall.com/api/shipping?check=connection'),{ip:'test'});
  assert.deepEqual(await response.json(),{status:'connected'});
