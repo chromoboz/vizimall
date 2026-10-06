@@ -15,7 +15,8 @@ const profileFields=`id name default coversAllItems profileLocationGroups{locati
 export async function assertShippingScopes(admin){
   const data=await admin(`query{currentAppInstallation{accessScopes{handle}}}`);
   const scopes=new Set(data.currentAppInstallation?.accessScopes?.map(s=>s.handle));
-  if(requiredShippingScopes.some(scope=>!scopes.has(scope)))throw Error('Shipping and market permission required');
+  const missing=requiredShippingScopes.filter(scope=>!scopes.has(scope)&&!(scope.startsWith('read_')&&scopes.has(scope.replace(/^read_/,'write_'))));
+  if(missing.length){const error=Error('Shipping and market permission required');error.missingScopes=missing;throw error;}
 }
 // Only the private scheduled worker can call this writer. Never take a price
 // supplied by a browser. Each destination retains its own native checkout price.

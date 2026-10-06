@@ -10,46 +10,33 @@
   const browsing = normalize(url.searchParams.get('country'));
   const initial = url.pathname === '/' || /\/index(?:\.html)?\/?$/.test(url.pathname);
   const remembered = stored();
-  const country = valid(requested) ? requested : valid(remembered) ? remembered : valid(browsing) ? browsing : 'DE';
+  let country = valid(requested) ? requested : valid(remembered) ? remembered : valid(browsing) ? browsing : 'DE';
   if (!initial || valid(requested) || valid(remembered)) { try { localStorage.setItem(key, country); } catch {} }
   document.documentElement.dataset.shippingCountry = country;
   url.searchParams.set('shipping', country);
   if (!initial || valid(requested) || valid(remembered)) history.replaceState(history.state, '', url);
   const withCountry = (input, code = country) => {
     const target = new URL(input, location.href);
-    if (!(initial && !valid(requested) && !valid(remembered)) && target.origin === location.origin && /\/(?:index|mall|account|tech|home|pets|beauty|fashion|kids|auto|help|privacy|newsletter|travel|lifestyle)(?:\.html)?\/?$/.test(target.pathname)) target.searchParams.set('shipping', code);
+    if (!(initial && !valid(requested) && !valid(stored())) && target.origin === location.origin && /\/(?:index|mall|account|tech|home|pets|beauty|fashion|kids|auto|help|privacy|newsletter|travel|lifestyle)(?:\.html)?\/?$/.test(target.pathname)) target.searchParams.set('shipping', code);
     return target;
   };
-  // Reload atomically: no stale list, open product or checkout request survives a switch.
-  function select(code) {
+  // Product controls remember delivery without navigating away from the product.
+  function remember(code) {
     code = normalize(code);
     if (!valid(code)) throw new Error('Choose a supported delivery country.');
+    country = code;
     try { localStorage.setItem(key, code); } catch {}
+    document.documentElement.dataset.shippingCountry = code;
     const next = new URL(location.href);
     next.searchParams.set('shipping', code);
-    location.assign(next.href);
+    history.replaceState(history.state, '', next);
+    return code;
   }
-  window.VizimallShipping = Object.freeze({ country, storageKey: key, select, withCountry });
-  const header = document.querySelector('.topbar, .shop-header, .account-header');
-  if (header) {
-    header.classList.add('has-shipping-selector');
-    const label = document.createElement('label');
-    label.className = 'shipping-selector';
-    label.append(document.createTextNode('Shipping to: '));
-    const control = document.createElement('select');
-    control.id = 'shipping-country';
-    control.setAttribute('aria-label', 'Shipping country');
-    for (const [code, market] of Object.entries(markets)) {
-      const option = document.createElement('option');
-      option.value = code;
-      option.textContent = market.name;
-      control.append(option);
-    }
-    control.value = country;
-    control.addEventListener('change', () => select(control.value));
-    label.append(control);
-    header.append(label);
+  function select(code) {
+    remember(code);
+    location.assign(location.href);
   }
+  window.VizimallShipping = Object.freeze({ get country() { return country; }, storageKey: key, remember, select, withCountry });
   for (const anchor of document.querySelectorAll('a[href]')) anchor.href = withCountry(anchor.href).href;
   // Covers links created later by profile, favourites and store navigation.
   document.addEventListener('click', event => {

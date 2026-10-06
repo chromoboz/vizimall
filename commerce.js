@@ -1,13 +1,13 @@
 (() => {
   'use strict';
   const country = document.documentElement.dataset.country;
-  const shippingCountry = window.VizimallShipping?.country || country;
+  let shippingCountry = window.VizimallShipping?.country || country;
   const api = window.VizimallStorefront;
   if (!country || !Object.hasOwn(api.countries, country)) return;
   const store = document.body.dataset.category;
   const market = window.VIZIMALL_MARKETS[country];
   const destination = {name:window.VizimallDestinations.name(shippingCountry)};
-  const storageKey = `vizimall-cart-v1:${window.VIZIMALL_SHOPIFY.domain}:${shippingCountry}`;
+  let storageKey = `vizimall-cart-v1:${window.VIZIMALL_SHOPIFY.domain}:${shippingCountry}`;
   let client, connectionError;
   try { client = api.createClient(window.VIZIMALL_SHOPIFY); } catch (error) { connectionError = error; }
   function element(tag, className, text) {
@@ -85,7 +85,14 @@
       const option = element('option', '', target.name); option.value = code; selector.append(option);
     }
     selector.value = shippingCountry;
-    selector.addEventListener('change', () => window.VizimallShipping.select(selector.value));
+    selector.addEventListener('change', () => {
+      shippingCountry = window.VizimallShipping.remember(selector.value);
+      destination.name = window.VizimallDestinations.name(shippingCountry);
+      storageKey = `vizimall-cart-v1:${window.VIZIMALL_SHOPIFY.domain}:${shippingCountry}`;
+      cart = readCart();
+      save();
+      renderDelivery(lastVariant, originControl.value || undefined);
+    });
     shipLabel.append(selector); delivery.append(shipLabel);
     const quantityLabel = element('label', 'delivery-country', 'Quantity: ');
     const quantity = element('input'); quantity.type = 'number'; quantity.min = '1'; quantity.max = '99'; quantity.value = '1'; quantity.setAttribute('aria-label','Shipping quote quantity');
@@ -157,11 +164,14 @@
       && typeof line.title === 'string' && typeof line.variantTitle === 'string' && Number.isFinite(Number(line.price?.amount))
       && /^[A-Z]{3}$/.test(line.price?.currencyCode);
   }
-  let cart = [];
-  try {
-    const saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
-    if (Array.isArray(saved)) cart = saved.filter(validLine).slice(0, 50);
-  } catch {}
+  function readCart() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
+      if (Array.isArray(saved)) return saved.filter(validLine).slice(0, 50);
+    } catch {}
+    return [];
+  }
+  let cart = readCart();
   function save() {
     try { localStorage.setItem(storageKey, JSON.stringify(cart)); } catch {}
     renderBag(cart.reduce((n, l) => n + l.quantity, 0));
@@ -402,6 +412,7 @@
         if(event.detail.variantId!==select.value)return;
         currentShippingQuote=event.detail.quote;
         const quote=currentShippingQuote;
+        if(!quote)price.textContent='Checking destination price…';
         if(quote?.pricing)price.textContent=money(quote.pricing.unitPrice)+' · standard shipping included';
         if(Number.isSafeInteger(quote?.stockQuantity))stockStatus.textContent=quote.stockQuantity.toLocaleString()+' remaining in '+window.VizimallDestinations.name(quote.from);
         add.disabled=!quote?.pricing?.checkoutReady;
@@ -419,10 +430,6 @@
   }
   const panel = document.querySelector('.product-panel');
   if (!panel || !api.stores.includes(store)) return;
-  const destinationNotice = element('aside', 'destination-notice');
-  destinationNotice.setAttribute('aria-label', 'Delivery destination');
-  destinationNotice.append(element('strong', '', `${market.name} suppliers · Shipping to ${destination.name}`), element('p', '', 'Products stay in their supplier’s country collection. Select a delivery country to check live warehouse stock, shipping options and standard shipping-included prices. Delivery is available only when CJ confirms a route.'));
-  panel.before(destinationNotice);
   const grid = panel.querySelector('.product-grid');
   const tools = element('div', 'store-tools');
   const search = element('input'); search.type = 'search'; search.placeholder = 'Search this store'; search.setAttribute('aria-label', 'Search this store');
