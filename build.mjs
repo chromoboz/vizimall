@@ -17,7 +17,7 @@ for (const file of ['backend-rules.mjs', 'backend-persistence.mjs', 'backend-rev
 const handler = (await readFile('backend-customer.mjs', 'utf8')).replaceAll("from './backend-", "from '../lib/backend-");
 await writeFile('.generated/functions/customer.mjs', handler);
 const productionRetention = process.env.CONTEXT === 'production';
-await writeFile('.generated/functions/pricing-sync.mjs', `import { createPricingJob } from '../lib/backend-pricing-job.mjs';\nconst window = {};\n${storefrontConfiguration}\nexport default createPricingJob({production:${productionRetention},apply:false,storefrontConfig:window.VIZIMALL_SHOPIFY});\nexport const config = {schedule:'23 * * * *'};\n`);
+await writeFile('.generated/functions/pricing-sync.mjs', `import { createPricingJob } from '../lib/backend-pricing-job.mjs';\nconst window = {};\n${storefrontConfiguration}\nexport default createPricingJob({production:${productionRetention},apply:true,prioritySku:'CJCF29731860001',storefrontConfig:window.VIZIMALL_SHOPIFY});\nexport const config = {schedule:'*/2 * * * *'};\n`);
 await writeFile('.generated/functions/retention.mjs', `import { store } from '../lib/backend-persistence.mjs';
 import { purgeAudience } from '../lib/backend-audience.mjs';
 export default async function () { if (${productionRetention}) await purgeAudience(await store(new Request('https://vizimall.com'))); return new Response(null, {status:204}); }

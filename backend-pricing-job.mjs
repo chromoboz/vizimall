@@ -4,7 +4,7 @@ import { createShippingHandler } from './backend-shipping.mjs';
 import { parseEcbRates } from './backend-included-pricing.mjs';
 
 // Invoked only as a Netlify scheduled function. No public HTTP price writer.
-export function createPricingJob({ production=false, apply=false, storefrontConfig,
+export function createPricingJob({ production=false, apply=false, prioritySku=null, storefrontConfig,
   dbFactory=store, fetcher=fetch, adminFactory=createAdminPricingClientFromEnv, env=process.env }={}) {
   return async function () {
     if (!production) return new Response(null,{status:204});
@@ -21,7 +21,9 @@ export function createPricingJob({ production=false, apply=false, storefrontConf
       report.connection='connected';report.eligibleVariants=eligible.length;
       if(!eligible.length){report.status='no_eligible_variants';return new Response(null,{status:204});}
       const cursor=await db.get('shipping/private/pricing-cursor',{type:'json'});
-      const index=Number.isInteger(cursor?.index)?cursor.index%eligible.length:0;
+      const lastRun=await db.get('shipping/private/pricing-last-run',{type:'json'});
+      const priorityIndex=apply&&lastRun?.mode!=='apply'?eligible.findIndex(v=>v.sku===prioritySku):-1;
+      const index=priorityIndex>=0?priorityIndex:Number.isInteger(cursor?.index)?cursor.index%eligible.length:0;
       nextIndex=(index+1)%eligible.length;
       const variant=eligible[index];report.sku=variant.sku;
       const quoteHandler=createShippingHandler({dbFactory:async()=>db,fetcher:boundedFetch,env,storefrontConfig,probeSkus:[variant.sku]});
