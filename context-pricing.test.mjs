@@ -82,6 +82,13 @@ test('Unconfirmed permissions and disabled activation prevent all destination wr
   await createContextPricingJob({production:true,env:{},dbFactory:()=>{throw Error('must not access')}})();
   await createContextPricingJob({production:false,env:{VIZIMALL_NATIVE_SHIPPING_ENABLED:'true'},dbFactory:()=>{throw Error('must not access')}})();
 });
+
+test('An overlapping invocation leaves the active worker lease and report unchanged',async()=>{
+  const f=fixture();const lease={until:Date.now()+30000};f.values.set('shipping/private/context-lease',lease);
+  const report={status:'verified'};f.values.set('shipping/private/context-last-run',report);
+  const run=createContextPricingJob({production:true,env:{VIZIMALL_NATIVE_SHIPPING_ENABLED:'true'},storefrontConfig:{domain:'example.myshopify.com'},dbFactory:async()=>f.db,adminFactory:()=>{throw Error('must not make duplicate admin requests');}});
+  assert.equal((await run()).status,204);assert.equal(f.values.get('shipping/private/context-lease'),lease);assert.equal(f.values.get('shipping/private/context-last-run'),report);
+});
 test('Route withdrawal invalidates readiness and never changes a merchant-owned shipping profile',async()=>{
   const f=fixture();await revokeDestination({admin:f.admin,db:f.db,variantId:id,destination:'GR'});
   assert.equal(f.values.get('shipping/private/context-price/1/GR').profileConfirmed,false);assert.equal(f.writes.length,0);
