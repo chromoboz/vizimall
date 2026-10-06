@@ -11,7 +11,16 @@ export function supplierContext(variant){
 function payload(data,key){const result=data?.[key];if(!result||result.userErrors?.length)throw Error('Shopify destination configuration was not confirmed');return result;}
 function sameMoney(a,b){return a?.currencyCode===b?.currencyCode&&Number(a.amount)===Number(b.amount);}
 const marketFields=`id name status conditions{conditionTypes regionsCondition{regions(first:250){nodes{... on MarketRegionCountry{code}} pageInfo{hasNextPage}}}} catalogs(first:100){nodes{id title status priceList{id currency}} pageInfo{hasNextPage}}`;
-const profileFields=`id name default coversAllItems profileLocationGroups{locationGroup{id locations(first:250){nodes{id} pageInfo{hasNextPage}}} locationGroupZones(first:250){nodes{zone{id countries{code{countryCode restOfWorld}}} methodDefinitions(first:10){nodes{id active name methodConditions{__typename} rateProvider{... on DeliveryRateDefinition{price{amount currencyCode}}}} pageInfo{hasNextPage}}} pageInfo{hasNextPage}}}`;
+const locationFields=`id isActive isFulfillmentService fulfillmentService{handle serviceName}`;
+const profileFields=`id name default coversAllItems unassignedLocationsPaginated(first:250){nodes{${locationFields}} pageInfo{hasNextPage}} profileLocationGroups{locationGroup{id locations(first:250){nodes{${locationFields}} pageInfo{hasNextPage}}} locationGroupZones(first:250){nodes{zone{id countries{code{countryCode restOfWorld}}} methodDefinitions(first:10){nodes{id active name methodConditions{__typename} rateProvider{... on DeliveryRateDefinition{price{amount currencyCode}}}} pageInfo{hasNextPage}}} pageInfo{hasNextPage}}}`;
+function cjLocation(profile){
+  const unassigned=profile?.unassignedLocationsPaginated;
+  if(!unassigned||unassigned.pageInfo.hasNextPage)throw Error('CJ fulfillment location requires review');
+  const locations=[...unassigned.nodes,...(profile.profileLocationGroups||[]).flatMap(g=>g.locationGroup.locations.nodes)];
+  const matches=[...new Map(locations.filter(l=>l.isActive&&l.isFulfillmentService&&[l.fulfillmentService?.handle,l.fulfillmentService?.serviceName].some(n=>String(n||'').toLowerCase()==='cjdropshipping')).map(l=>[l.id,l])).values()];
+  if(matches.length!==1)throw Error('CJ fulfillment location requires review');
+  return matches[0].id;
+}
 export async function assertShippingScopes(admin){
   const data=await admin(`query{currentAppInstallation{accessScopes{handle}}}`);
   const scopes=new Set(data.currentAppInstallation?.accessScopes?.map(s=>s.handle));
@@ -63,18 +72,28 @@ export async function prepareDestinationPrice({admin,db,variantId,expectedSku,br
   const existing=variant.deliveryProfile;
   const groups=existing?.profileLocationGroups||[];
   if(!groups.length||groups.length>5||groups.some(g=>g.locationGroup.locations.pageInfo.hasNextPage||g.locationGroupZones.pageInfo.hasNextPage))throw Error('Fulfillment locations require review');
+  // CJ inventory stays at its app-managed location. Copying a merchant's physical
+  // location makes Shopify mark stocked CJ products sold out for that route.
+  const fulfillmentLocationId=cjLocation(existing);
+  if(owned&&groups.length!==1)throw Error('CJ fulfillment groups require review');
+  if(owned){
+    const group=groups[0],ids=group.locationGroup.locations.nodes.map(l=>l.id);
+    if(ids.length!==1||ids[0]!==fulfillmentLocationId){
+      payload(await admin(`mutation($id:ID!,$profile:DeliveryProfileInput!){deliveryProfileUpdate(id:$id,profile:$profile){profile{id} userErrors{field message}}}`,{id:existing.id,profile:{locationGroupsToUpdate:[{id:group.locationGroup.id,locationsToAdd:ids.includes(fulfillmentLocationId)?[]:[fulfillmentLocationId],locationsToRemove:ids.filter(id=>id!==fulfillmentLocationId)}]}}),'deliveryProfileUpdate');
+    }
+  }
   const zone={name:'CJ confirmed '+destination,countries:[{code:destination,includeAllProvinces:true}],methodDefinitionsToCreate:[{name:'Standard shipping included',active:true,description:'Standard shipping is included per item in the product price.',rateDefinition:{price:{amount:'0.00',currencyCode:'EUR'}}}]};
   const already=owned&&groups.every(g=>g.locationGroupZones.nodes.some(z=>z.zone.countries.length===1&&z.zone.countries[0].code.countryCode===destination&&!z.zone.countries[0].code.restOfWorld&&z.methodDefinitions.nodes.length===1&&z.methodDefinitions.nodes[0].active&&!z.methodDefinitions.nodes[0].methodConditions.length&&sameMoney(z.methodDefinitions.nodes[0].rateProvider.price,{amount:'0.00',currencyCode:'EUR'})));
   if(!already){
     if(owned){payload(await admin(`mutation($id:ID!,$profile:DeliveryProfileInput!){deliveryProfileUpdate(id:$id,profile:$profile){profile{id} userErrors{field message}}}`,{id:existing.id,profile:{locationGroupsToUpdate:groups.map(g=>({id:g.locationGroup.id,zonesToCreate:[zone]}))}}),'deliveryProfileUpdate');}
     else{
-      if(!groups.every(g=>g.locationGroup.locations.nodes.length))throw Error('Fulfillment locations require review');
-      payload(await admin(`mutation($profile:DeliveryProfileInput!){deliveryProfileCreate(profile:$profile){profile{id} userErrors{field message}}}`,{profile:{name,variantsToAssociate:[variantId],locationGroupsToCreate:groups.map(g=>({locationsToAdd:g.locationGroup.locations.nodes.map(l=>l.id),zonesToCreate:[zone]}))}}),'deliveryProfileCreate');
+      payload(await admin(`mutation($profile:DeliveryProfileInput!){deliveryProfileCreate(profile:$profile){profile{id} userErrors{field message}}}`,{profile:{name,variantsToAssociate:[variantId],locationGroupsToCreate:[{locationsToAdd:[fulfillmentLocationId],zonesToCreate:[zone]}]}}),'deliveryProfileCreate');
     }
   }
   const fresh=await read();
   if(fresh.node?.sku!==expectedSku||JSON.stringify(fresh.node?.product)!==JSON.stringify(variant.product)||!sameMoney(fresh.node?.contextualPricing?.price,price)||fresh.node.deliveryProfile?.name!==name)throw Error('Native checkout price or profile was not confirmed');
   const freshGroups=fresh.node.deliveryProfile.profileLocationGroups;
+  if(freshGroups.length!==1||freshGroups[0].locationGroup.locations.nodes.length!==1||freshGroups[0].locationGroup.locations.nodes[0].id!==fulfillmentLocationId)throw Error('CJ fulfillment location was not confirmed');
   if(!freshGroups.length||freshGroups.some(g=>!g.locationGroupZones.nodes.some(z=>z.zone.countries.length===1&&z.zone.countries[0].code.countryCode===destination&&!z.zone.countries[0].code.restOfWorld&&z.methodDefinitions.nodes.length===1&&z.methodDefinitions.nodes[0].active&&!z.methodDefinitions.nodes[0].methodConditions.length&&sameMoney(z.methodDefinitions.nodes[0].rateProvider.price,{amount:'0.00',currencyCode:'EUR'}))))throw Error('Included shipping rate was not confirmed');
   const record={sku:expectedSku,price,profileConfirmed:true,profileId:fresh.node.deliveryProfile.id,marketId:market.id,priceListId:priceList.id,checkedAt:new Date(now).toISOString(),expiresAt:now+3600000};
   await db.setJSON('shipping/private/context-price/'+variantId.split('/').at(-1)+'/'+destination,record);

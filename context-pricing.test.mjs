@@ -6,11 +6,12 @@ import {shippingMethods} from './backend-included-pricing.mjs';
 const id='gid://shopify/ProductVariant/1';
 const source={sku:'CJTEST1',id,price:'21.90',product:{tags:['country-germany','store-tech'],status:'ACTIVE'}};
 const quote={status:'available',sku:'CJTEST1',from:'DE',destination:'GR',quantity:1,expiresAt:Date.now()+60000,pricing:{unitPrice:{amount:'29.10',currencyCode:'EUR'}}};
-function fixture({contextMismatch=false,rate='0.00',scopes=requiredShippingScopes}={}){
+function fixture({contextMismatch=false,rate='0.00',scopes=requiredShippingScopes,owned=false,missingCj=false,ambiguousCj=false,ignoreLocationChange=false}={}){
   const values=new Map([['shipping/private/base-price/1',{globalLastSeen:'21.90'}]]),writes=[];
   const zone={zone:{id:'gid://shopify/DeliveryZone/1',countries:[{code:{countryCode:'GR',restOfWorld:false}}]},methodDefinitions:{nodes:[{active:true,methodConditions:[],rateProvider:{price:{amount:rate,currencyCode:'EUR'}}}]}};
   const groups=[{locationGroup:{id:'gid://shopify/DeliveryLocationGroup/1',locations:{nodes:[{id:'gid://shopify/Location/1'}],pageInfo:{hasNextPage:false}}},locationGroupZones:{nodes:[zone],pageInfo:{hasNextPage:false}}}];
-  let profile={id:'gid://shopify/DeliveryProfile/1',name:'General',default:true,profileLocationGroups:groups},contextPrice='21.90';
+  const cj={id:'gid://shopify/Location/CJ',isActive:true,isFulfillmentService:true,fulfillmentService:{handle:'cjdropshipping',serviceName:'cjdropshipping'}};
+  let profile={id:'gid://shopify/DeliveryProfile/1',name:owned?'Vizimall CJ route 1':'General',default:!owned,coversAllItems:false,unassignedLocationsPaginated:{nodes:missingCj?[]:ambiguousCj?[cj,{...cj,id:'gid://shopify/Location/OTHER'}]:[cj],pageInfo:{hasNextPage:false}},profileLocationGroups:groups},contextPrice='21.90';
   const admin=async(query,vars)=>{
     if(query.includes('currentAppInstallation'))return{currentAppInstallation:{accessScopes:scopes.map(handle=>({handle}))}};
     if(query.startsWith('query')&&query.includes('markets(first:'))return{markets:{nodes:[{id:'gid://shopify/Market/GR',name:'Existing Greece',status:'ACTIVE',conditions:{conditionTypes:['REGION'],regionsCondition:{regions:{nodes:[{code:'GR'}],pageInfo:{hasNextPage:false}}}},catalogs:{nodes:[{id:'merchant-catalog',title:'Merchant catalog',status:'ACTIVE',priceList:{id:'merchant-prices',currency:'EUR'}}],pageInfo:{hasNextPage:false}}}],pageInfo:{hasNextPage:false}}};
@@ -19,8 +20,8 @@ function fixture({contextMismatch=false,rate='0.00',scopes=requiredShippingScope
     if(query.includes('catalogCreate('))return{catalogCreate:{catalog:{id:'owned-catalog',status:'ACTIVE'},userErrors:[]}};
     if(query.includes('priceListCreate('))return{priceListCreate:{priceList:{id:'owned-prices',currency:'EUR'},userErrors:[]}};
     if(query.includes('priceListFixedPricesAdd(')){contextPrice=contextMismatch?'25.00':'29.10';return{priceListFixedPricesAdd:{prices:[],userErrors:[]}};}
-    if(query.includes('deliveryProfileCreate(')){profile={...profile,name:vars.profile.name,default:false,coversAllItems:false};return{deliveryProfileCreate:{profile:{id:profile.id},userErrors:[]}};}
-    if(query.includes('deliveryProfileUpdate('))return{deliveryProfileUpdate:{profile:{id:profile.id},userErrors:[]}};
+    if(query.includes('deliveryProfileCreate(')){profile={...profile,name:vars.profile.name,default:false,coversAllItems:false};if(!ignoreLocationChange)groups[0].locationGroup.locations.nodes=[cj];return{deliveryProfileCreate:{profile:{id:profile.id},userErrors:[]}};}
+    if(query.includes('deliveryProfileUpdate(')){if(vars.profile.locationGroupsToUpdate?.[0]?.locationsToAdd&&!ignoreLocationChange)groups[0].locationGroup.locations.nodes=[cj];return{deliveryProfileUpdate:{profile:{id:profile.id},userErrors:[]}};}
     throw Error('Unexpected operation');
   };
   const db={get:async key=>values.get(key),getWithMetadata:async key=>values.has(key)?{data:values.get(key),etag:'1'}:null,setJSON:async(key,value)=>{values.set(key,value);return{modified:true}}};
@@ -41,8 +42,31 @@ test('Destination writer verifies native price and zero shipping, leaving mercha
   assert.equal(fixed.priceListId,'owned-prices');
   const profile=f.writes.find(w=>w.query.includes('deliveryProfileCreate(')).vars.profile;
   assert.deepEqual(profile.variantsToAssociate,[id]);assert.equal(profile.coversAllItems,undefined);
+  assert.deepEqual(profile.locationGroupsToCreate[0].locationsToAdd,['gid://shopify/Location/CJ']);
   assert.deepEqual(profile.locationGroupsToCreate[0].zonesToCreate[0].countries,[{code:'GR',includeAllProvinces:true}]);
   assert.ok(!f.writes.some(w=>/productUpdate|productVariantsBulkUpdate|publishablePublish/.test(w.query)));
+});
+
+test('Existing CJ route replaces the empty merchant origin with the CJ fulfillment location, preserving zones',async()=>{
+  const f=fixture({owned:true});await prepareDestinationPrice(f.args);
+  const repair=f.writes.find(w=>w.vars?.profile?.locationGroupsToUpdate?.[0]?.locationsToAdd).vars.profile.locationGroupsToUpdate[0];
+  assert.deepEqual(repair.locationsToAdd,['gid://shopify/Location/CJ']);
+  assert.deepEqual(repair.locationsToRemove,['gid://shopify/Location/1']);
+  assert.equal(repair.zonesToCreate,undefined);
+  assert.ok(!f.writes.some(w=>/inventory|productUpdate|publishablePublish/.test(w.query)));
+});
+
+test('Missing or ambiguous CJ locations cannot create a physical-origin fallback route',async()=>{
+  for(const opts of [{missingCj:true},{ambiguousCj:true}]){
+    const f=fixture(opts);await assert.rejects(prepareDestinationPrice(f.args),/CJ fulfillment location requires review/);
+    assert.ok(!f.writes.some(w=>/deliveryProfile(Create|Update)/.test(w.query)));
+    assert.equal(f.values.has('shipping/private/context-price/1/GR'),false);
+  }
+});
+
+test('A mutation that leaves the wrong fulfillment location cannot mark a route ready',async()=>{
+  const f=fixture({owned:true,ignoreLocationChange:true});await assert.rejects(prepareDestinationPrice(f.args),/CJ fulfillment location was not confirmed/);
+  assert.equal(f.values.has('shipping/private/context-price/1/GR'),false);
 });
 test('A conflicting native price never opens a free-shipping route or enables checkout',async()=>{
   const f=fixture({contextMismatch:true});await assert.rejects(prepareDestinationPrice(f.args),/Native country price/);
