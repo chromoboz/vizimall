@@ -21,6 +21,19 @@ class Database {
   async delete(key) { this.values.delete(key); }
   async list({ prefix }) { return { blobs: [...this.values.keys()].filter(key => key.startsWith(prefix)).map(key => ({ key })) }; }
 }
+test('Product-card summaries expose only approved aggregates and bound the batch', async () => {
+  const db = new Database();
+  const handler = createHandler({ storeFactory: async () => db });
+  await db.setJSON('reviews/' + hash(productId) + '/one', { status: 'approved', rating: 4, photos: [], createdAt: '2026-10-06', customerId: 'private', orderId: 'private' });
+  await db.setJSON('reviews/' + hash(productId) + '/two', { status: 'pending', rating: 5 });
+  const response = await handler(new Request('https://vizimall.com/api/review-summaries?' + new URLSearchParams({ products: productId })));
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { summaries: [{ productId, count: 1, average: 4 }] });
+  const empty = await handler(new Request('https://vizimall.com/api/review-summaries?products=gid%3A%2F%2Fshopify%2FProduct%2F2'));
+  assert.equal((await empty.json()).summaries[0].average, null);
+  const oversized = Array.from({ length: 25 }, (_, i) => 'gid://shopify/Product/' + i).join(',');
+  assert.equal((await handler(new Request('https://vizimall.com/api/review-summaries?' + new URLSearchParams({ products: oversized })))).status, 400);
+});
 test('Money uses decimal integer arithmetic and rejects malformed values', () => {
   assert.equal(cents('12.09'), 1209); assert.equal(cents('0.1'), 10);
   for (const amount of ['NaN', '-1', '1.001', '1e6']) assert.throws(() => cents(amount));

@@ -13,6 +13,7 @@
     image.classList.add('ready');
   }
   image.addEventListener('load',position);
-  window.addEventListener('resize',position);
+  let frame = 0;
+  window.addEventListener('resize', () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(position); });
   position();
 })();

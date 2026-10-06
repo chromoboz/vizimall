@@ -1,4 +1,6 @@
 /* Commerce UI supplements the existing mall design. */
+.delivery-country input{width:70px;padding:8px;min-height:44px;border:1px solid #c4b89f;border-radius:8px;background:#fff;font:inherit;box-sizing:border-box}
+.delivery-country{display:flex!important;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 18px!important}.delivery-country select{font:inherit;font-size:16px;min-height:44px;max-width:100%;padding:8px;border:1px solid #c4b89f;border-radius:8px;background:#fff;color:#28251f}.delivery-facts{display:grid;grid-template-columns:minmax(90px,1fr) minmax(0,1.5fr);gap:12px;font-size:13px;line-height:1.6}.delivery-facts dt{color:#746e64}.delivery-facts dd{margin:0;overflow-wrap:anywhere}.delivery-information .delivery-source{border-top:1px solid #d6c6a5;padding-top:12px;font-size:11px;line-height:1.7}.delivery-information select:focus-visible{outline:2px solid #947c48;outline-offset:3px}
 .cart-toggle{border:1px solid #d7b56d80;border-radius:20px;background:#181a19;color:#f5f2eb;padding:9px 14px;cursor:pointer;font:inherit;font-size:12px;white-space:nowrap}
 .topbar .cart-toggle{position:absolute;right:175px;top:50%;transform:translateY(-50%)}
 .product-card{padding:14px;border:1px solid #dfd9ce;border-radius:12px;background:#fffc;min-width:0}
@@ -32,3 +34,10 @@
 @media(max-width:760px){.commerce-dialog:has(.product-detail){padding:18px}.product-detail{gap:20px}.detail-price{font-size:26px;margin-bottom:20px}.gallery-enlarge>img{max-height:340px}.option-choice{max-width:100px}.delivery-information{margin-top:20px}}
 .delivery-information .delivery-estimate{font-size:17px;font-weight:600;color:#403b31;margin-bottom:10px}
 .destination-notice{margin:0 0 22px;padding:16px 20px;border:1px solid #d6c6a5;border-radius:12px;background:#f8f3e9;color:#625946;line-height:1.7;font-size:13px}.destination-notice strong{display:block;color:#403b31;margin-bottom:4px}.destination-notice p{margin:0}.delivery-information .destination-note{margin-top:12px;padding-top:12px;border-top:1px solid #d6c6a5}
+
+/* Page spacers release distant cards and their images without changing the grid. */
+.product-grid.paged-grid{display:flex;flex-direction:column;gap:22px}
+.product-page{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px;align-content:start;overflow-anchor:none}
+.page-restore{grid-column:1/-1;justify-self:start}
+@media(max-width:600px){.product-grid.paged-grid{gap:12px}.product-page{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}}
+@media(pointer:coarse){.commerce-dialog::backdrop{backdrop-filter:none}.product-panel{animation:none}}

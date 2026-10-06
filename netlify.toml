@@ -13,6 +13,11 @@
   status = 301
   force = true
 [[redirects]]
+  from = "/api/shipping"
+  to = "/.netlify/functions/shipping"
+  status = 200
+  force = true
+[[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/customer/:splat"
   status = 200

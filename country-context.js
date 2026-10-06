@@ -13,7 +13,7 @@
   link.className = 'market-switch';
   link.href = 'index.html';
   link.textContent = `${code} · ${market.name} ↗`;
-  link.setAttribute('aria-label', `Current country: ${market.name}. Change country`);
+  link.setAttribute('aria-label', `Browsing ${market.name} mall. Change mall`);
   header.append(link);
   for (const anchor of document.querySelectorAll('a[href]')) {
     const target = new URL(anchor.href, location.href);
@@ -22,7 +22,10 @@
       anchor.href = target.href;
     }
   }
-  for (const button of document.querySelectorAll('[data-href]')) button.dataset.href += `?country=${code}`;
+  for (const button of document.querySelectorAll('[data-href]')) {
+    const target = window.VizimallShipping.withCountry(button.dataset.href);
+    target.searchParams.set('country', code); button.dataset.href = target.href;
+  }
   const heading = document.querySelector('.collection-heading h2');
   if (heading) heading.textContent = `The ${market.name} collection`;
   const welcome = document.querySelector('.shop-welcome');

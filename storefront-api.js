@@ -16,9 +16,12 @@
     }
     if (!/^\d{4}-(01|04|07|10)$/.test(config.apiVersion)) throw new Error('The store connection is unavailable.');
     const endpoint = `https://${config.domain}/api/${config.apiVersion}/graphql.json`;
-    async function request(query, variables) {
+    async function request(query, variables, signal) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 20000);
+      const abort = () => controller.abort();
+      if (signal?.aborted) abort();
+      else signal?.addEventListener('abort', abort, { once: true });
       try {
         const response = await fetcher(endpoint, {
           method: 'POST', signal: controller.signal, credentials: 'omit',
@@ -27,36 +30,50 @@
         });
         if (!response.ok) throw new Error('Unable to reach the store. Please try again.');
         const body = await response.json();
+        if (body.errors?.length && body.errors.every(error => error.extensions?.code === 'ACCESS_DENIED' && error.path?.includes('quantityAvailable')) && query.includes('quantityAvailable')) {
+          return request(query.replace(/\bquantityAvailable\b/g, ''), variables, signal);
+        }
         if (body.errors?.length || !body.data) throw new Error('Unable to load store information. Please try again.');
         return body.data;
       } catch (error) {
         if (error.name === 'AbortError') throw new Error('The store took too long to respond. Please try again.');
         throw error;
-      } finally { clearTimeout(timer); }
+      } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
     }
     const productFields = 'id title description tags availableForSale featuredImage { url altText } priceRange { minVariantPrice { amount currencyCode } }';
-    const variantFields = 'id title selectedOptions { name value } availableForSale price { amount currencyCode } image { url altText }';
-    async function products(country, store, after = null) {
+    const variantFields = 'id title selectedOptions { name value } availableForSale quantityAvailable currentlyNotInStock price { amount currencyCode } image { url altText }';
+    async function products(country, store, after = null, options = {}) {
       const { countryTag, storeTag } = routing(country, store);
+      const shippingCountry = options.shippingCountry || country;
+      const shippingTag = routing(shippingCountry, store).countryTag;
+      const terms = [...new Set([countryTag, shippingTag, storeTag])].map(tag => 'tag:' + tag);
+      const quote = value => '"' + value.replace(/[\\"():*]/g, character => '\\' + character) + '"';
+      for (const word of String(options.search || '').trim().split(/\s+/).filter(Boolean)) terms.push('title:' + quote(word) + '*');
+      if (options.inStock) terms.push('available_for_sale:true');
+      const sortKey = ['low', 'high'].includes(options.sort) ? 'PRICE' : 'TITLE';
+      const reverse = options.sort === 'high';
+      const listFields = productFields.replace(' description ', ' ');
       const data = await request(`query Products($country: CountryCode!, $filter: String!, $after: String) @inContext(country: $country) {
-        products(first: 24, after: $after, query: $filter, sortKey: TITLE) {
-          nodes { ${productFields} } pageInfo { hasNextPage endCursor }
+        products(first: 24, after: $after, query: $filter, sortKey: ${sortKey}, reverse: ${reverse}) {
+          nodes { ${listFields} } pageInfo { hasNextPage endCursor }
         }
-      }`, { country, filter: `tag:${countryTag} AND tag:${storeTag}`, after });
+      }`, { country: shippingCountry, filter: terms.join(' AND '), after }, options.signal);
       // Also check exact tags locally: Shopify search indexing can lag behind edits.
-      return { products: data.products.nodes.filter(p => matches(p, country, store)), pageInfo: data.products.pageInfo };
+      return { products: data.products.nodes.filter(p => matches(p, country, store) && matches(p, shippingCountry, store)), pageInfo: data.products.pageInfo };
     }
-    async function product(country, store, id) {
+    async function product(country, store, id, signal, shippingCountry = country) {
       routing(country, store);
+      routing(shippingCountry, store);
       let after = null, item, variants = [];
       do {
         const data = await request(`query Product($country: CountryCode!, $id: ID!, $after: String) @inContext(country: $country) {
-          product(id: $id) { ${productFields} descriptionHtml images(first: 250) { nodes { url altText } } variants(first: 100, after: $after) {
+          product(id: $id) { ${productFields} descriptionHtml delivery:metafield(namespace:"vizimall",key:"delivery_routes"){type value} images(first: 250) { nodes { url altText } } variants(first: 100, after: $after) {
             nodes { ${variantFields} } pageInfo { hasNextPage endCursor }
           } }
-        }`, { country, id, after });
+        }`, { country: shippingCountry, id, after }, signal);
         item = data.product;
         if (!item || !matches(item, country, store)) throw new Error('This product is no longer available in this store.');
+        if (!matches(item, shippingCountry, store)) throw new Error('Not available for shipping to ' + countries[shippingCountry] + '.');
         variants.push(...item.variants.nodes);
         const page = item.variants.pageInfo;
         if (page.hasNextPage && (!page.endCursor || page.endCursor === after)) throw new Error('Unable to load all product options.');
@@ -68,7 +85,7 @@
       if (!Object.hasOwn(countries, country) || !Array.isArray(lines) || !lines.length || lines.length > 50) throw new Error('Please review your cart.');
       const verified = [];
       // Revalidate country/store eligibility and current stock at checkout.
-      const details = await Promise.all(lines.map(line => product(country, line.store, line.productId)));
+      const details = await Promise.all(lines.map(line => product(line.browsingCountry || country, line.store, line.productId, undefined, country)));
       lines.forEach((line, index) => {
         const variant = details[index].variants.find(v => v.id === line.variantId && v.availableForSale);
         if (!variant || !Number.isInteger(line.quantity) || line.quantity < 1 || line.quantity > 99) {

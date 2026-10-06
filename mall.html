@@ -7,8 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=51" />
-<link rel="stylesheet" href="commerce.css?v=1"><link rel="stylesheet" href="account.css?v=1"><link rel="stylesheet" href="consent.css"><link rel="stylesheet" href="profile.css"></head>
+  <link rel="stylesheet" href="styles.css?v=perf1" />
+<link rel="stylesheet" href="commerce.css?v=perf1"><link rel="stylesheet" href="account.css?v=1"><link rel="stylesheet" href="consent.css"><link rel="stylesheet" href="profile.css"><link rel="stylesheet" href="shipping-country.css?v=2"></head>
 <body class="mall-page">
   <header class="topbar">
     <div class="brand"><div class="brand-wordmark">
@@ -22,7 +22,7 @@
 <div class="panorama-viewport" id="panoramaViewport" tabindex="0" aria-label="Mall panorama. Use left and right arrow keys to explore.">
         <div class="panorama-track" id="panoramaTrack">
           <div class="panorama-canvas">
-            <img id="panoramaImage" class="panorama-image" src="./vizimall-panorama-kids.png" alt="Vizimall panoramic shopping mall interior" draggable="false" />
+            <picture><source type="image/avif" srcset="vizimall-panorama-1600.avif 1600w, vizimall-panorama-2400.avif 2400w" sizes="(max-width:768px) 200vw, 160vw"><source type="image/webp" srcset="vizimall-panorama-1600.webp 1600w, vizimall-panorama-2400.webp 2400w" sizes="(max-width:768px) 200vw, 160vw"><img id="panoramaImage" class="panorama-image" src="vizimall-panorama-2400.webp" decoding="async" fetchpriority="high" loading="eager" width="2154" height="730" alt="Vizimall panoramic shopping mall interior" draggable="false" /></picture>
             <div class="facade-sign" style="left:8.6%;top:30%;--sign-angle:7deg"><strong>HOME &amp; LIVING</strong><span>Comfort for your home</span></div><button data-href="home.html" class="store-hotspot home-hotspot" data-store="HOME &amp; LIVING" aria-label="Home and Living"></button>
             <div class="facade-sign" style="left:24.1%;top:34.3%;--sign-angle:4.5deg"><strong>BEAUTY &amp; CARE</strong><span>Care for yourself</span></div><button data-href="beauty.html" class="store-hotspot beauty-hotspot" data-store="BEAUTY &amp; CARE" aria-label="Beauty and Care"></button>
             <div class="facade-sign" style="left:38%;top:37%;--sign-angle:1.5deg"><strong>TECH &amp; GADGETS</strong><span>Smart everyday essentials</span></div><button data-href="tech.html" class="store-hotspot tech-hotspot" data-store="TECH &amp; GADGETS" aria-label="Tech and Gadgets"></button>
@@ -44,7 +44,7 @@
 
     </section>
   </main>
-  <script src="markets.js?v=2"></script><script src="country-context.js?v=3"></script><script src="script.js?v=36"></script>
-<script src="shopify-config.js?v=1"></script><script src="storefront-api.js?v=2"></script><script src="review-widget.js?v=1"></script><script src="commerce.js?v=1"></script><script src="consent.js" defer></script><script src="profile.js"></script></body>
+  <script src="markets.js?v=2"></script><script src="shipping-country.js?v=2"></script><script src="country-context.js?v=shipping-perf2"></script><script src="script.js?v=perf1"></script>
+<script src="shopify-config.js?v=1"></script><script src="storefront-api.js?v=shipping-perf2"></script><script src="review-widget.js?v=1"></script><script src="delivery-info.js?v=1"></script><script src="commerce.js?v=shipping-perf2"></script><script src="consent.js" defer></script><script src="profile.js"></script></body>
 </html>
 

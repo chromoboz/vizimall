@@ -11,6 +11,7 @@
   let frame = 0, coast = 0, velocity = 0, friction = 240;
   let measuredWidth = 0, measuredHeight = 0, measuredCanvasWidth = 0;
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  const lightEntry = matchMedia('(pointer: coarse), (prefers-reduced-motion: reduce)');
   function stopMotion() {
     cancelAnimationFrame(frame); cancelAnimationFrame(coast);
     frame = coast = 0; velocity = 0;
@@ -100,6 +101,8 @@
     if (e.target === viewport && !viewport.hasPointerCapture(e.pointerId)) end(e);
   });
   window.addEventListener('blur', () => {end();stopMotion();});
+  document.addEventListener('visibilitychange', () => { if (document.hidden) {end();stopMotion();} });
+  window.addEventListener('pagehide', () => {end();stopMotion();clearTimeout(timer);clearTimeout(entryTimer);});
   viewport.addEventListener('dragstart', e => e.preventDefault());
   viewport.addEventListener('click', e => {
     if (dragged && e.detail !== 0) {e.preventDefault(); return;}
@@ -110,6 +113,10 @@
       if (entering) return;
       stopMotion();
       entering = true;
+      if (lightEntry.matches) {
+        location.href = button.dataset.href;
+        return;
+      }
       const cx = button.offsetLeft + button.offsetWidth/2;
       const cy = button.offsetTop + button.offsetHeight/2;
       const scale = Math.max(1.65, viewport.clientWidth/(button.offsetWidth*1.1), viewport.clientHeight/(button.offsetHeight*.95));

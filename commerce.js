@@ -1,11 +1,13 @@
 (() => {
   'use strict';
   const country = document.documentElement.dataset.country;
+  const shippingCountry = window.VizimallShipping?.country || country;
   const api = window.VizimallStorefront;
   if (!country || !Object.hasOwn(api.countries, country)) return;
   const store = document.body.dataset.category;
   const market = window.VIZIMALL_MARKETS[country];
-  const storageKey = `vizimall-cart-v1:${window.VIZIMALL_SHOPIFY.domain}:${country}`;
+  const destination = window.VIZIMALL_MARKETS[shippingCountry];
+  const storageKey = `vizimall-cart-v1:${window.VIZIMALL_SHOPIFY.domain}:${shippingCountry}`;
   let client, connectionError;
   try { client = api.createClient(window.VIZIMALL_SHOPIFY); } catch (error) { connectionError = error; }
   function element(tag, className, text) {
@@ -24,14 +26,27 @@
     try { return new Intl.NumberFormat(document.documentElement.lang || 'en', { style: 'currency', currency: price.currencyCode }).format(Number(price.amount)); }
     catch { return `${price.amount} ${price.currencyCode}`; }
   }
-  function image(source, title) {
-    const node = element('img');
+  function setImage(node, source, title, kind = 'card') {
     node.alt = source?.altText || title;
-    node.loading = 'lazy';
+    node.decoding = 'async';
+    node.removeAttribute('srcset');
+    node.removeAttribute('src');
     try {
       const url = new URL(source?.url);
-      if (url.protocol === 'https:') node.src = url.href;
-    } catch { node.alt = `Image unavailable: ${title}`; }
+      if (url.protocol !== 'https:') return;
+      // Shopify CDN negotiates modern formats; preserve all other image hosts.
+      const cdn = url.hostname === 'cdn.shopify.com' || url.hostname.endsWith('.myshopify.com');
+      const widths = kind === 'thumb' ? [80,160] : kind === 'detail' ? [400,800,1200] : kind === 'viewer' ? [800,1200,1600] : [240,400,640];
+      node.sizes = kind === 'thumb' ? '62px' : kind === 'detail' ? '(max-width: 760px) calc(100vw - 68px), 460px' : kind === 'viewer' ? '(max-width: 1000px) calc(100vw - 80px), 920px' : '(max-width: 600px) calc((100vw - 86px) / 2), (max-width: 1100px) calc((100vw - 150px) / 3), 300px';
+      const sized = width => { const next = new URL(url); next.searchParams.set('width', width); return next.href; };
+      if (cdn) node.srcset = widths.map(width => sized(width) + ' ' + width + 'w').join(', ');
+      node.src = cdn ? sized(widths[1]) : url.href;
+    } catch { node.alt = 'Image unavailable: ' + title; }
+  }
+  function image(source, title, kind = 'card') {
+    const node = element('img');
+    node.loading = 'lazy';
+    setImage(node, source, title, kind);
     return node;
   }
   function productInformation(detail) {
@@ -62,11 +77,70 @@
     }
     if (!description.textContent.trim()) description.textContent = detail.description;
     details.append(description);
-    if (delivery.children.length === 1) delivery.append(element('p', '', 'Delivery time depends on the product and destination. Enter your delivery address at checkout to check available shipping options.'));
-    const listedCountries = Object.entries(api.countries).filter(([, slug]) => detail.tags?.includes(`country-${slug}`)).map(([code]) => window.VIZIMALL_MARKETS[code].name);
-    if (listedCountries.length) delivery.append(element('p', '', `Listed destinations: ${listedCountries.join(', ')}.`));
-    delivery.append(element('p', 'destination-note', 'Delivery estimates apply to the destinations stated for this product. Shipping to another country may take longer or be unavailable. Enter your delivery address at checkout to check shipping options.'));
-    return { details, delivery };
+    delivery.replaceChildren(element('h3', '', 'Delivery'));
+    const shipLabel = element('label', 'delivery-country', 'Ship to: ');
+    const selector = element('select'); selector.setAttribute('aria-label', 'Product shipping country');
+    for (const [code, target] of Object.entries(window.VIZIMALL_MARKETS)) {
+      const option = element('option', '', target.name); option.value = code; selector.append(option);
+    }
+    selector.value = shippingCountry;
+    selector.addEventListener('change', () => window.VizimallShipping.select(selector.value));
+    shipLabel.append(selector); delivery.append(shipLabel);
+    const quantityLabel = element('label', 'delivery-country', 'Quantity: ');
+    const quantity = element('input'); quantity.type = 'number'; quantity.min = '1'; quantity.max = '99'; quantity.value = '1'; quantity.setAttribute('aria-label','Shipping quote quantity');
+    quantityLabel.append(quantity); delivery.append(quantityLabel);
+    const originLabel = element('label', 'delivery-country', 'Shipping from: ');
+    const originControl = element('select'); originControl.setAttribute('aria-label','Shipping origin'); originLabel.append(originControl); originLabel.hidden = true;
+    const methodLabel = element('label', 'delivery-country', 'Shipping method: ');
+    const methodControl = element('select'); methodControl.setAttribute('aria-label','Shipping method'); methodLabel.append(methodControl); methodLabel.hidden = true;
+    const table = element('dl', 'delivery-facts');
+    delivery.append(originLabel, methodLabel, table);
+    let lastVariant, requestNumber = 0, quoteController;
+    function renderDelivery(variantId, from) {
+      lastVariant = variantId;
+      quoteController?.abort(); const requestId = ++requestNumber;
+      methodLabel.hidden = originLabel.hidden = true;
+      const route = window.VizimallDelivery.route(detail, shippingCountry, variantId);
+      table.replaceChildren();
+      for (const [label, value] of [
+        ['Shipping method', route.method || 'Confirmed at checkout'],
+        ['Processing time', route.processing || 'Not provided'],
+        ['Estimated delivery', route.estimate || 'Not provided for this destination'],
+        ['Shipping cost', route.cost || 'Confirmed at checkout']
+      ]) { table.append(element('dt', '', label), element('dd', '', value)); }
+      note.textContent = route.note;
+      if (!variantId || !Number.isInteger(Number(quantity.value)) || Number(quantity.value)<1 || Number(quantity.value)>99) return;
+      quoteController = new AbortController();
+      const query = new URLSearchParams({ variant:variantId, shipping:shippingCountry, country, store, quantity:quantity.value });
+      if (from) query.set('from',from);
+      fetch('/api/shipping?'+query, { signal:quoteController.signal,credentials:'same-origin' }).then(response => response.json()).then(quote => {
+        if (requestId !== requestNumber || !delivery.isConnected) return;
+        if (quote.status === 'not_connected' || quote.status === 'not_mapped') return;
+        if (quote.status === 'unavailable') { table.replaceChildren(element('dt','','Availability'),element('dd','','No shipping option available for this quantity and destination.')); note.textContent='Choose another destination or quantity.'; return; }
+        if (quote.status !== 'available') { note.textContent='Live shipping information is temporarily unavailable. '+route.note; return; }
+        originControl.replaceChildren();
+        for (const code of quote.origins) { const option=element('option','',window.VIZIMALL_MARKETS[code]?.name||code); option.value=code; originControl.append(option); }
+        originControl.value=quote.from; originLabel.hidden=false;
+        methodControl.replaceChildren();
+        quote.methods.forEach((method,index)=>{const option=element('option','',method.name);option.value=String(index);methodControl.append(option);});
+        methodLabel.hidden=false;
+        function showQuote() {
+          const method=quote.methods[Number(methodControl.value)]; if(!method)return;
+          table.replaceChildren();
+          for(const [label,value] of [['Processing time',route.processing||'Not provided by supplier'],['Estimated delivery',method.transport ? 'Transport: '+method.transport+' days; preparation is additional' : 'Not provided'],['Supplier shipping estimate',money(method.supplierCost)]])table.append(element('dt','',label),element('dd','',value));
+          note.textContent='CJ estimate for '+quote.quantity+' item(s), checked '+new Date(quote.checkedAt).toLocaleTimeString()+'. This is not the final checkout charge. Transit and preparation are separate; no arrival date is guaranteed.';
+        }
+        methodControl.onchange=showQuote;showQuote();
+      }).catch(error => { if(requestId===requestNumber && error.name!=='AbortError')note.textContent='Live shipping information is temporarily unavailable. '+route.note; });
+    }
+    const note = element('p', 'delivery-source'); delivery.append(note);
+    quantity.addEventListener('change',()=>renderDelivery(lastVariant,originControl.value||undefined));
+    originControl.addEventListener('change',()=>renderDelivery(lastVariant,originControl.value));
+    const refresh=setInterval(()=>{if(delivery.isConnected&&document.visibilityState==='visible')renderDelivery(lastVariant,originControl.value||undefined);},300000);
+    const cleanup=new MutationObserver(()=>{if(!delivery.isConnected){clearInterval(refresh);quoteController?.abort();cleanup.disconnect();}});
+    cleanup.observe(document.body,{childList:true});
+    renderDelivery();
+    return { details, delivery, renderDelivery };
   }
   function validLine(line) {
     return line && /^gid:\/\/shopify\/ProductVariant\/\d+$/.test(line.variantId) && /^gid:\/\/shopify\/Product\/\d+$/.test(line.productId)
@@ -106,7 +180,7 @@
   document.body.append(cartButton);
   save();
   function showCart() {
-    const modal = dialog(`Your bag · ${market.name}`);
+    const modal = dialog(`Your bag · Shipping to ${destination.name}`);
     const contents = element('div', 'cart-contents');
     const status = element('p', 'commerce-status');
     status.setAttribute('role', 'status');
@@ -123,7 +197,13 @@
       status.textContent = 'Checking availability and opening secure checkout…';
       try {
         if (!client) throw connectionError;
-        const url = await client.checkout(country, cart.map(line => ({ ...line })));
+        for (const line of cart) {
+          const query=new URLSearchParams({variant:line.variantId,shipping:shippingCountry,country:line.browsingCountry||country,store:line.store,quantity:line.quantity});
+          const response=await fetch('/api/shipping?'+query,{credentials:'same-origin',signal:AbortSignal.timeout(15000)});
+          const quote=await response.json();
+          if(!response.ok||quote.status!=='available'||!quote.methods?.length) throw new Error('Shipping cost and delivery time could not be verified. Please try again before checking out.');
+        }
+        const url = await client.checkout(shippingCountry, cart.map(line => ({ ...line })));
         // Keep the bag when a buyer returns without completing payment.
         location.assign(url);
       } catch (error) {
@@ -168,13 +248,15 @@
     status.setAttribute('role', 'status');
     content.append(status); modal.append(content);
     try {
-      const detail = await client.product(country, store, item.id);
+      const controller = new AbortController();
+      modal.addEventListener('close', () => controller.abort(), { once: true });
+      const detail = await client.product(country, store, item.id, controller.signal, shippingCountry);
       if (!modal.isConnected) return;
       const photos = [...detail.images, detail.featuredImage, ...detail.variants.map(v => v.image)]
         .filter((photo, index, all) => /^https:\/\//i.test(photo?.url || '') && all.findIndex(p => p?.url === photo.url) === index);
       const gallery = element('section', 'product-gallery');
       gallery.setAttribute('aria-label', `${detail.title} photos`);
-      const mainImage = image(photos[0], detail.title);
+      const mainImage = image(photos[0], detail.title, 'detail');
       mainImage.loading = 'eager';
       const counter = element('p', 'gallery-counter');
       counter.setAttribute('aria-live', 'polite');
@@ -182,7 +264,10 @@
       const enlarge = button('', () => {
         const viewer = dialog(`${detail.title} · Photo ${photoIndex + 1}`);
         viewer.classList.add('photo-viewer');
-        viewer.append(image(photos[photoIndex], detail.title));
+        const enlarged = image(photos[photoIndex], detail.title, 'viewer');
+        enlarged.loading = 'eager';
+        viewer.append(enlarged);
+        modal.addEventListener('close', () => viewer.close(), { once: true });
       }, 'gallery-enlarge');
       enlarge.setAttribute('aria-label', `Enlarge photo of ${detail.title}`);
       mainImage.draggable = false;
@@ -211,18 +296,17 @@
       const photoButtons = photos.map((photo, index) => {
         const thumb = button('', () => choosePhoto(index), 'gallery-thumbnail');
         thumb.setAttribute('aria-label', `Show photo ${index + 1} of ${photos.length}`);
-        thumb.append(image(photo, `${detail.title} · Photo ${index + 1}`));
+        thumb.append(image(photo, `${detail.title} · Photo ${index + 1}`, 'thumb'));
         thumbnails.append(thumb);
         return thumb;
       });
       function choosePhoto(index) {
         photoIndex = index;
-        mainImage.src = photos[index].url;
-        mainImage.alt = `${detail.title} · Photo ${index + 1}`;
+        setImage(mainImage, photos[index], `${detail.title} · Photo ${index + 1}`, 'detail');
         counter.textContent = `Photo ${index + 1} of ${photos.length} · Click to enlarge`;
         photoButtons.forEach((thumb, i) => thumb.setAttribute('aria-pressed', String(i === index)));
         const active = photoButtons[index];
-        thumbnails.scrollTo({ left: Math.max(0, active.offsetLeft - thumbnails.offsetLeft - thumbnails.clientWidth / 2 + active.clientWidth / 2), behavior: 'smooth' });
+        thumbnails.scrollTo({ left: Math.max(0, active.offsetLeft - thumbnails.offsetLeft - thumbnails.clientWidth / 2 + active.clientWidth / 2), behavior: matchMedia('(prefers-reduced-motion: reduce), (pointer: coarse)').matches ? 'auto' : 'smooth' });
       }
       gallery.append(stage, counter, thumbnails);
       if (photos.length) choosePhoto(0);
@@ -231,6 +315,8 @@
       const copy = element('div', 'product-detail-copy');
       const price = element('p', 'detail-price');
       const selectedOption = element('p', 'selected-option');
+      const stockStatus = element('p', 'product-stock');
+      stockStatus.setAttribute('aria-live', 'polite');
       const information = productInformation(detail);
       copy.append(element('p', 'detail-eyebrow', `${market.name} collection`), price);
       const selectLabel = element('label', '', 'Choose an option');
@@ -266,7 +352,7 @@
           choice.disabled = !eligible.some(v => v.availableForSale);
           if (/colou?r/i.test(name)) {
             const source = eligible.find(v => v.image)?.image;
-            if (source) choice.append(image(source, value));
+            if (source) choice.append(image(source, value, 'thumb'));
           }
           choice.append(element('span', '', value));
           choices.append(choice); optionButtons.push({ choice, name, value });
@@ -275,11 +361,13 @@
       }
       function showVariantPhoto() {
         const variant = detail.variants.find(v => v.id === select.value);
+        information.renderDelivery(variant?.id);
         const index = photos.findIndex(photo => photo.url === variant?.image?.url);
         if (index >= 0) choosePhoto(index);
         else if (photos.length) choosePhoto(0);
         price.textContent = variant ? money(variant.price) : '';
         selectedOption.textContent = variant && variant.title !== 'Default Title' ? `Selected: ${variant.title}` : '';
+        stockStatus.textContent = !variant?.availableForSale ? 'Sold out' : variant.currentlyNotInStock ? 'Available to order · delivery may take longer' : Number.isInteger(variant.quantityAvailable) && variant.quantityAvailable > 0 ? `${variant.quantityAvailable.toLocaleString()} remaining · selected option` : 'In stock · quantity unavailable';
         optionButtons.forEach(({ choice, name, value }) => choice.setAttribute('aria-pressed', String(variant?.selectedOptions?.some(o => o.name === name && o.value === value) || false)));
         if (typeof add !== 'undefined') { add.disabled = !variant?.availableForSale; add.textContent = variant?.availableForSale ? 'Add to bag' : 'Sold out'; }
       }
@@ -291,7 +379,7 @@
         if (existing && existing.quantity >= 99) { status.textContent = 'The maximum quantity per item is 99.'; return; }
         if (!existing && cart.length >= 50) { status.textContent = 'Your bag is full. Please check out first.'; return; }
         if (existing) existing.quantity += 1;
-        else cart.push({ productId: detail.id, variantId: variant.id, store, title: detail.title, variantTitle: variant.title, price: variant.price, quantity: 1 });
+        else cart.push({ productId: detail.id, variantId: variant.id, store, browsingCountry: country, title: detail.title, variantTitle: variant.title, price: variant.price, quantity: 1 });
         save(); status.textContent = 'Added to your bag.';
       });
       add.disabled = !available;
@@ -299,7 +387,7 @@
       selectLabel.hidden = select.hidden = optionGroups.size > 0 || detail.variants.length < 2;
       const purchaseActions = element('div', 'purchase-actions');
       purchaseActions.append(add, button('View bag', () => { modal.close(); showCart(); }, 'commerce-secondary'));
-      copy.append(selectLabel, select, selectedOption, purchaseActions, status, information.delivery);
+      copy.append(selectLabel, select, selectedOption, stockStatus, purchaseActions, status, information.delivery);
       content.append(copy, information.details);
       if (window.VizimallReviews) window.VizimallReviews(content, detail.id);
       showVariantPhoto();
@@ -326,67 +414,194 @@
   more.hidden = true; panel.append(more);
   const retry = button('Try again', load, 'commerce-secondary');
   retry.hidden = true; panel.append(retry);
-  let cursor = null, loading = false, seen = new Set(), records = [], complete = false;
-  function renderProducts() {
-    const filtered = records.filter(item => item.title.toLocaleLowerCase().includes(search.value.trim().toLocaleLowerCase())
-      && (!stockInput.checked || item.availableForSale)
-      && (!minimum.value || Number(item.priceRange.minVariantPrice.amount) >= Number(minimum.value))
-      && (!maximum.value || Number(item.priceRange.minVariantPrice.amount) <= Number(maximum.value)));
-    filtered.sort((a, b) => sorting.value === 'name' ? a.title.localeCompare(b.title) : (Number(a.priceRange.minVariantPrice.amount) - Number(b.priceRange.minVariantPrice.amount)) * (sorting.value === 'high' ? -1 : 1));
-    grid.replaceChildren();
-    for (const item of filtered) {
-      const card = element('article', 'product-card');
-      const open = button('', () => showProduct(item), 'product-open'); open.setAttribute('aria-label', `View ${item.title}`);
-      open.append(image(item.featuredImage, item.title), element('h3', '', item.title));
-      const favourite = button('♡ Save favourite', async () => {
-        favourite.disabled = true;
-        try {
-          const response = await fetch('/api/favourites', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'add', productId: item.id, title: item.title, country, store }) });
-          if (response.status === 401) { location.href = 'account.html#favourites'; return; }
-          if (!response.ok) throw new Error('Could not save. Please try again.');
-          favourite.textContent = '♥ Saved';
-        } catch (error) { message.textContent = error.message; } finally { favourite.disabled = false; }
-      }, 'favourite-button');
-      card.append(open, element('p', 'product-price', `From ${money(item.priceRange.minVariantPrice)}`), button(item.availableForSale ? 'Choose options' : 'View product · Sold out', () => showProduct(item), 'commerce-secondary'), favourite);
-      grid.append(card);
+  // Keep only nearby 24-product pages in memory. Other pages retain a cursor
+  // and measured spacer, so scrolling back restores them without layout collapse.
+  grid.classList.add('paged-grid');
+  let cursor = null, loading = false, complete = false, total = 0;
+  let generation = 0, filterTimer, options = { shippingCountry }, pages = [];
+  const requests = new Set();
+  const pageByNode = new WeakMap();
+  function updateCount() {
+    count.textContent = total + ' product' + (total === 1 ? '' : 's') + (complete ? '' : ' loaded');
+  }
+  function productCard(item) {
+    const card = element('article', 'product-card');
+    const open = button('', () => showProduct(item), 'product-open');
+    open.setAttribute('aria-label', 'View ' + item.title);
+    open.append(image(item.featuredImage, item.title), element('h3', '', item.title));
+    const favourite = button('♡ Save favourite', async () => {
+      favourite.disabled = true;
+      try {
+        const response = await fetch('/api/favourites', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'add', productId: item.id, title: item.title, country, store }) });
+        if (response.status === 401) { location.href = 'account.html#favourites'; return; }
+        if (!response.ok) throw new Error('Could not save. Please try again.');
+        favourite.textContent = '♥ Saved';
+      } catch (error) { message.textContent = error.message; } finally { favourite.disabled = false; }
+    }, 'favourite-button');
+    card.dataset.productId = item.id;
+    const rating = element('p', 'product-rating', 'Loading reviews…');
+    rating.setAttribute('aria-live', 'polite');
+    card.append(open, rating, element('p', 'product-price', 'From ' + money(item.priceRange.minVariantPrice)), button(item.availableForSale ? 'Choose options' : 'View product · Sold out', () => showProduct(item), 'commerce-secondary'), favourite);
+    return card;
+  }
+  function priceMatches(item) {
+    const amount = Number(item.priceRange.minVariantPrice.amount);
+    return (!options.min || amount >= Number(options.min)) && (!options.max || amount <= Number(options.max));
+  }
+  function mount(page, items) {
+    page.items = items.filter(priceMatches);
+    page.node.style.minHeight = '';
+    page.node.replaceChildren(...page.items.map(productCard));
+    loadRatings(page.node, page.items);
+    if (!page.items.length) page.node.append(element('p', 'commerce-status', 'No products in this page match these prices.'));
+    sizeObserver?.observe(page.node);
+  }
+  async function loadRatings(node, items) {
+    if (!items.length) return;
+    const cards = [...node.querySelectorAll('.product-card')];
+    try {
+      const response = await fetch('/api/review-summaries?' + new URLSearchParams({ products: items.map(item => item.id).join(',') }), { credentials: 'omit' });
+      if (!response.ok) throw new Error('Reviews unavailable');
+      const { summaries } = await response.json();
+      for (const card of cards) {
+        const summary = summaries?.find(value => value.productId === card.dataset.productId);
+        const label = card.querySelector('.product-rating');
+        if (Number.isInteger(summary?.count) && summary.count > 0 && Number.isFinite(summary.average) && summary.average >= 1 && summary.average <= 5) {
+          const stars = element('span', 'product-stars');
+          stars.setAttribute('aria-hidden', 'true');
+          stars.textContent = '★'.repeat(Math.round(summary.average)) + '☆'.repeat(5 - Math.round(summary.average));
+          label.replaceChildren(stars, document.createTextNode(` ${summary.average.toFixed(1)}/5 (${summary.count})`));
+          label.setAttribute('aria-label', `${summary.average.toFixed(1)} out of 5 from ${summary.count} approved purchase reviews`);
+        } else {
+          const stars = element('span', 'product-stars', '☆☆☆☆☆');
+          stars.setAttribute('aria-hidden', 'true');
+          label.replaceChildren(stars, document.createTextNode(' No reviews yet'));
+        }
+      }
+    } catch {
+      for (const card of cards) card.querySelector('.product-rating').textContent = 'Reviews currently unavailable';
     }
-    count.textContent = `${filtered.length} product${filtered.length === 1 ? '' : 's'}${complete ? '' : ' loaded'}`;
-    message.textContent = filtered.length ? 'Choose a product to explore its options.' : records.length ? 'No products match these filters.' : 'No products in this collection yet. Explore another store.';
   }
-  async function refine() {
-    renderProducts();
-    // Complete pagination before claiming that filters search the whole collection.
-    if (!complete && !loading) await load();
+  function release(page) {
+    if (!page.items || page.near || page.node.contains(document.activeElement)) return;
+    page.height = page.node.getBoundingClientRect().height;
+    page.width = page.node.clientWidth;
+    sizeObserver?.unobserve(page.node);
+    page.node.style.minHeight = page.height + 'px';
+    const restore = button('Show these products', () => restorePage(page), 'commerce-secondary page-restore');
+    restore.addEventListener('focus', () => { page.near = true; restorePage(page); });
+    page.node.replaceChildren(restore);
+    page.items = null;
   }
-  for (const control of [search, sorting, stockInput, minimum, maximum]) control.addEventListener('input', refine);
+  async function restorePage(page) {
+    if (page.items || page.pending) return;
+    page.pending = true;
+    const token = generation, controller = new AbortController();
+    requests.add(controller);
+    try {
+      const result = await client.products(country, store, page.after, { ...options, signal: controller.signal });
+      if (token !== generation) return;
+      const hadFocus = page.node.contains(document.activeElement);
+      mount(page, result.products);
+      if (hadFocus) page.node.querySelector('button')?.focus();
+      release(page);
+    } catch (error) {
+      if (token === generation && !controller.signal.aborted) {
+        const retryPage = button('Try loading these products again', () => restorePage(page), 'commerce-secondary page-restore');
+        page.node.replaceChildren(retryPage);
+      }
+    } finally { requests.delete(controller); page.pending = false; }
+  }
+  const sizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(entries => {
+    for (const {target} of entries) {
+      const page = pageByNode.get(target);
+      if (page?.items) { page.height = target.getBoundingClientRect().height; page.width = target.clientWidth; }
+    }
+  }) : null;
+  const pageObserver = typeof IntersectionObserver === 'function' ? new IntersectionObserver(entries => {
+    for (const entry of entries) {
+      const page = pageByNode.get(entry.target);
+      if (!page) continue;
+      page.near = entry.isIntersecting;
+      if (page.near) restorePage(page); else release(page);
+    }
+  }, { rootMargin: '700px 0px' }) : null;
+  grid.addEventListener('focusout', () => requestAnimationFrame(() => pages.forEach(release)));
+  let resizeFrame = 0;
+  window.addEventListener('resize', () => {
+    cancelAnimationFrame(resizeFrame);
+    resizeFrame = requestAnimationFrame(() => {
+      for (const page of pages) if (!page.items && page.width) {
+        // Re-estimate unloaded page height on orientation/column changes.
+        const width = page.node.clientWidth;
+        const oldColumns = page.width < 520 ? 2 : 3, columns = width < 520 ? 2 : 3;
+        page.node.style.minHeight = Math.max(100, page.height * oldColumns / columns * Math.max(.6, width / page.width)) + 'px';
+      }
+    });
+  });
   async function load() {
-    if (loading) return;
+    if (loading || complete) return;
+    const token = generation, controller = new AbortController();
+    requests.add(controller);
     loading = true; more.disabled = true; retry.hidden = true;
     panel.setAttribute('aria-busy', 'true');
     message.textContent = 'Loading the collection…';
     try {
       if (!client) throw connectionError;
-      // Skip pages whose stale search results fail the exact-tag check.
-      let result;
-      do {
-        result = await client.products(country, store, cursor);
-        const previous = cursor;
-        cursor = result.pageInfo.endCursor;
-        if (result.pageInfo.hasNextPage && (!cursor || cursor === previous)) throw new Error('Unable to load the next page. Please try again.');
-      } while (!result.products.length && result.pageInfo.hasNextPage);
-      for (const item of result.products) {
-        if (seen.has(item.id)) continue;
-        seen.add(item.id);
-        records.push(item);
+      const after = cursor;
+      const result = await client.products(country, store, after, { ...options, signal: controller.signal });
+      if (token !== generation) return;
+      const next = result.pageInfo.endCursor;
+      if (result.pageInfo.hasNextPage && (!next || next === after)) throw new Error('Unable to load the next page. Please try again.');
+      cursor = next; complete = !result.pageInfo.hasNextPage;
+      const page = { after, node: element('div', 'product-page'), items: null, near: true, height: 0, width: 0 };
+      page.node.setAttribute('aria-label', 'Product page ' + (pages.length + 1));
+      pageByNode.set(page.node, page); pages.push(page); grid.append(page.node);
+      mount(page, result.products);
+      total += page.items.length;
+      pageObserver?.observe(page.node);
+      updateCount();
+      more.hidden = complete;
+      message.textContent = total ? 'Choose a product to explore its options.' : complete ? 'No products match this collection and these filters.' : 'No matching products in this page. Load more to continue.';
+      // Re-arm only after an explicit scroll/load action: no catalog-draining loop.
+      if (!complete && page.items.length && infiniteObserver) {
+        infiniteObserver.unobserve(more); infiniteObserver.observe(more);
       }
-      complete = !result.pageInfo.hasNextPage;
-      renderProducts();
-      more.hidden = !result.pageInfo.hasNextPage;
-    } catch (error) { message.textContent = error.message; count.textContent = 'Collection'; retry.hidden = false; }
-    finally { loading = false; more.disabled = false; panel.setAttribute('aria-busy', 'false'); }
-    if (!complete && retry.hidden && (search.value || sorting.value !== 'name' || stockInput.checked || minimum.value || maximum.value || new URLSearchParams(location.search).has('product'))) await load();
-    const requested = new URLSearchParams(location.search).get('product');
-    if (requested && records.some(item => item.id === requested) && !panel.dataset.requestedOpened) { panel.dataset.requestedOpened = 'true'; showProduct(records.find(item => item.id === requested)); }
+    } catch (error) {
+      if (token === generation && !controller.signal.aborted) { message.textContent = error.message; retry.hidden = false; }
+    } finally {
+      requests.delete(controller);
+      if (token === generation) { loading = false; more.disabled = false; panel.setAttribute('aria-busy', 'false'); }
+    }
   }
+  const infiniteObserver = typeof IntersectionObserver === 'function' ? new IntersectionObserver(entries => {
+    if (entries.some(entry => entry.isIntersecting) && !loading && !complete && retry.hidden && !document.querySelector('dialog[open]')) load();
+  }, { rootMargin: '350px 0px' }) : null;
+  function refine() {
+    clearTimeout(filterTimer);
+    // Invalidate immediately, including responses arriving during debounce.
+    generation++; requests.forEach(controller => controller.abort()); requests.clear();
+    loading = true; infiniteObserver?.unobserve(more);
+    filterTimer = setTimeout(() => {
+      pages.forEach(page => { pageObserver?.unobserve(page.node); sizeObserver?.unobserve(page.node); page.items = null; });
+      pages = []; grid.replaceChildren(); cursor = null; complete = false; total = 0;
+      options = { shippingCountry, search: search.value, sort: sorting.value, inStock: stockInput.checked, min: minimum.value, max: maximum.value };
+      more.hidden = true; retry.hidden = true; loading = false;
+      load();
+    }, 250);
+  }
+  for (const control of [search, sorting, stockInput, minimum, maximum]) control.addEventListener('input', refine);
+  window.addEventListener('pagehide', () => {
+    for (const controller of requests) controller.abort();
+    for (const modal of document.querySelectorAll('dialog[open]')) modal.close();
+  });
+  window.addEventListener('pageshow', event => {
+    if (!event.persisted) return;
+    if (!pages.length && !loading) load();
+    else if (!complete) { infiniteObserver?.unobserve(more); infiniteObserver?.observe(more); }
+  });
+  // Saved-favourite links load that one product directly, never every list page.
+  const requested = new URLSearchParams(location.search).get('product');
+  if (/^gid:\/\/shopify\/Product\/\d+$/.test(requested || '') && client) showProduct({ id: requested, title: 'Product' });
   load();
 })();

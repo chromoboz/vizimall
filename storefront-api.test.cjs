@@ -16,6 +16,18 @@ function mock(respond) {
     return { ok: true, json: async () => respond(JSON.parse(options.body)) };
   });
 }
+test('Missing public inventory permission preserves detail and never fabricates quantity', async () => {
+  let calls = 0;
+  const client = mock(({ query }) => {
+    calls++;
+    if (query.includes('quantityAvailable')) return { errors: [{ extensions: { code: 'ACCESS_DENIED' }, path: ['product','variants','nodes',0,'quantityAvailable'] }] };
+    return { data: { product: item } };
+  });
+  const detail = await client.product('DE', 'tech', productId);
+  assert.equal(calls, 2);
+  assert.equal(detail.variants[0].quantityAvailable, undefined);
+  assert.equal(detail.variants[0].availableForSale, true);
+});
 test('All 56 country/store routes require both exact tags', () => {
   for (const country of Object.keys(api.countries)) for (const store of api.stores) {
     const { countryTag, storeTag } = api.routing(country, store);
@@ -92,4 +104,34 @@ test('HTTP and GraphQL failures are surfaced, never an empty collection', async 
   await assert.rejects(failed.products('DE','tech'));
   const denied = mock(() => ({ errors: [{ message: 'Access denied' }] }));
   await assert.rejects(denied.products('DE','tech'));
+});
+test('Search and global price sorting keep pages small and omit detail payloads', async () => {
+  const client = mock(({query, variables}) => {
+    assert.match(query, /products\(first: 24/);
+    assert.match(query, /sortKey: PRICE, reverse: true/);
+    assert.doesNotMatch(query, /description|images\(|variants\(/);
+    assert.equal(variables.filter, 'tag:country-germany AND tag:store-tech AND title:"Lamp"* AND available_for_sale:true');
+    return {data:{products:{nodes:[item],pageInfo:{hasNextPage:false,endCursor:'last'}}}};
+  });
+  await client.products('DE','tech',null,{search:'Lamp',sort:'high',inStock:true});
+});
+test('User search punctuation is escaped instead of changing country/store constraints', async () => {
+  const client = mock(({variables}) => {
+    assert.ok(variables.filter.startsWith('tag:country-germany AND tag:store-tech AND title:'));
+    assert.ok(variables.filter.includes('\\"'));
+    assert.ok(variables.filter.includes('\\:'));
+    return {data:{products:{nodes:[],pageInfo:{hasNextPage:false,endCursor:null}}}};
+  });
+  await client.products('DE','tech',null,{search:'" OR tag:country-france'});
+});
+test('Changing a filter or closing a detail can abort the in-flight fetch', async () => {
+  const controller = new AbortController();
+  const client = api.createClient(config, async (url, options) => {
+    await new Promise((resolve,reject) => {
+      options.signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'),{name:'AbortError'})), {once:true});
+    });
+  });
+  const pending = client.products('DE','tech',null,{signal:controller.signal});
+  controller.abort();
+  await assert.rejects(pending);
 });

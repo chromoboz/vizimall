@@ -91,6 +91,16 @@ return async function handler(req, context = {}) {
       destination.searchParams.set('post_logout_redirect_uri', `${origin}/account.html`);
       return redirect(destination.href, [setCookie('__Host-vizi-session', '', 0)]);
     }
+    if (action === 'review-summaries' && req.method === 'GET') {
+      const products = [...new Set((url.searchParams.get('products') || '').split(','))];
+      if (!products.length || products.length > 24 || products.some(id => !/^gid:\/\/shopify\/Product\/\d+$/.test(id))) return json({ error: 'Invalid products' }, 400);
+      await limit(db, `review-summaries:${context.ip || 'unknown'}`, 120, 60000);
+      const summaries = await Promise.all(products.map(async productId => {
+        const { count, average } = await approvedReviews(db, productId);
+        return { productId, count, average };
+      }));
+      return json({ summaries });
+    }
     if (action === 'reviews' && req.method === 'GET') return json(await approvedReviews(db, url.searchParams.get('product')));
     if (action === 'media' && req.method === 'GET') {
       const review = await db.get(keyFromId(url.searchParams.get('review')), { type: 'json' });
