@@ -121,7 +121,7 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
       await limit(db,'shipping:'+ (context.ip||'unknown'),60,60000);
       // Recheck current Shopify eligibility before returning even a cached quote.
       const variant=await product(id,browsing);
-      if(!variant.availableForSale||![`country-${countries[browsing]}`,`store-${category}`].every(tag=>variant.product.tags.includes(tag)))return reply({status:'unavailable',methods:[]});
+      if((!variant.availableForSale&&url.searchParams.get('check')!=='destinations')||![`country-${countries[browsing]}`,`store-${category}`].every(tag=>variant.product.tags.includes(tag)))return reply({status:'unavailable',methods:[]});
       if(!/^CJ[A-Za-z0-9 _-]{3,190}$/.test(variant.sku||''))return reply({status:'not_mapped',methods:[]});
       const key='shipping/quotes/'+hash(JSON.stringify([id,variant.sku,destination,browsing,category,requestedOrigin,quantity]));
       const cached=await db.get(key,{type:'json'});if(cached?.expiresAt>Date.now()&&!pricing)return reply(cached);
@@ -155,7 +155,7 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
         qualification={sku:variant.sku,processingHours:exact.length===1&&[24,48,72].includes(Number(exact[0].deliveryTime))?Number(exact[0].deliveryTime):null,expiresAt:Date.now()+86400000};
         await db.setJSON(qualificationKey,qualification);
       }
-      const value={status:methods.length?'available':'unavailable',sku:variant.sku,origins,from,destination,quantity,methods,stockQuantity:Math.max(...originStock.map(s=>Number(s.totalInventoryNum))),stockSource:'CJ reported warehouse inventory',processingHours:qualification?.sku===variant.sku&&qualification?.expiresAt>Date.now()?qualification.processingHours:null,checkedAt:new Date().toISOString(),expiresAt:Date.now()+cacheMs};
+      const value={status:methods.length?'available':'unavailable',...(methods.length?{}:{reason:'no_shipping_method'}),sku:variant.sku,origins,from,destination,quantity,methods,stockQuantity:Math.max(...originStock.map(s=>Number(s.totalInventoryNum))),stockSource:'CJ reported warehouse inventory',processingHours:qualification?.sku===variant.sku&&qualification?.expiresAt>Date.now()?qualification.processingHours:null,checkedAt:new Date().toISOString(),expiresAt:Date.now()+cacheMs};
       if(pricing&&methods.length){
         // Destination prices are private scheduled writes, never public mutations.
         // A quote can enqueue a request; checkout waits for Shopify confirmation.

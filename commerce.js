@@ -160,7 +160,7 @@
         if (requestId !== requestNumber || !delivery.isConnected) return;
         if(quote.status!=='available')delivery.dispatchEvent(new CustomEvent('vizimall-shipping-quote',{detail:{variantId,quote},bubbles:true}));
         if (quote.status === 'not_connected' || quote.status === 'not_mapped') return;
-        if (quote.status === 'unavailable') { destinationCodes.delete(shippingCountry);setDestinations([...destinationCodes]); table.replaceChildren(element('dt','','Availability'),element('dd','','No shipping option available for this quantity and destination.')); note.textContent='Choose another destination or quantity.'; return; }
+        if (quote.status === 'unavailable') { if(quote.reason==='no_shipping_method'){destinationCodes.delete(shippingCountry);setDestinations([...destinationCodes]);} table.replaceChildren(element('dt','','Availability'),element('dd','','No shipping option available for this quantity and destination.')); note.textContent='Choose another destination or quantity.'; return; }
         if (quote.status !== 'available') { note.textContent='Live shipping information is temporarily unavailable. '+route.note; return; }
         destinationCodes.add(shippingCountry);setDestinations([...destinationCodes]);
         originControl.replaceChildren();
@@ -385,7 +385,7 @@
         option.value = variant.id; option.disabled = !variant.availableForSale; select.append(option);
       }
       const available = detail.variants.find(v => v.availableForSale);
-      if (available) select.value = available.id;
+      if (available||detail.variants[0]) select.value = (available||detail.variants[0]).id;
       const optionGroups = new Map();
       for (const variant of detail.variants) for (const option of variant.selectedOptions || []) {
         if (option.name === 'Title' && option.value === 'Default Title') continue;

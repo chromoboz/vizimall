@@ -93,3 +93,10 @@ test('Destination discovery returns only freight-supported countries for the cur
  for(const call of calls.filter(c=>c.url.includes('freightCalculate'))){assert.equal(call.body.startCountryCode,'DE');assert.equal(call.body.products[0].vid,'cj-variant');assert.equal(call.body.products[0].quantity,1);}
  assert.ok(!JSON.stringify(result).includes('secret'));
 });
+
+test('Sold-out storefront products may display confirmed destinations but cannot obtain purchase quotes',async()=>{
+ const {handler}=fixture({variant:{...variant,availableForSale:false}});
+ assert.equal((await(await handler(new Request(base))).json()).status,'unavailable');
+ const discovery=await(await handler(new Request(base+'&check=destinations'))).json();
+ assert.ok(discovery.destinations.includes('DE'));
+});
