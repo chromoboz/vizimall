@@ -13,7 +13,7 @@ function fixture(overrides={}){
  else if(url.includes('stock/query'))data=overrides.stock||[{countryCode:'DE',totalInventoryNum:10},{countryCode:'CN',totalInventoryNum:100}];
  else if(url.includes('freightCalculate'))data=overrides.methods||[{logisticName:'CJPacket',logisticPrice:8.07,logisticAging:'3-5'}];
  return Response.json({result:true,code:200,data});};
- return {calls,handler:createShippingHandler({dbFactory:async()=>db,fetcher,env:{CJ_API_KEY:'test-secret'},storefrontConfig:settings})};
+ return {calls,handler:createShippingHandler({dbFactory:async()=>db,fetcher,env:{CJ_API_KEY:'test-secret'},storefrontConfig:settings,probeSku:'CJTEST-1'})};
 }
 test('Absent CJ configuration performs no supplier requests',async()=>{const handler=createShippingHandler({env:{},fetcher:()=>{throw Error('must not call')}});assert.equal((await (await handler(new Request(base))).json()).status,'not_connected');});
 test('Connection check validates supplier authentication without disclosing credentials',async()=>{
@@ -22,6 +22,13 @@ test('Connection check validates supplier authentication without disclosing cred
  assert.equal(calls.filter(c=>c.url.includes('getAccessToken')).length,1);
  await handler(new Request('https://vizimall.com/api/shipping?check=connection'),{ip:'test'});
  assert.equal(calls.filter(c=>c.url.includes('getAccessToken')).length,1);
+});
+test('Supplier smoke check exercises live freight without publishing a Shopify draft',async()=>{
+ const {handler,calls}=fixture();const result=await (await handler(new Request('https://vizimall.com/.netlify/functions/shipping?check=supplier-sample'),{ip:'test'})).json();
+ assert.equal(result.status,'available');assert.equal(result.destination,'NL');assert.equal(result.from,'DE');assert.ok(!calls.some(c=>c.url.includes('myshopify.com')));assert.ok(!JSON.stringify(result).includes('secret'));
+ const noStock=fixture({stock:[{countryCode:'CN',totalInventoryNum:100}]});
+ assert.equal((await (await noStock.handler(new Request('https://vizimall.com/.netlify/functions/shipping?check=supplier-sample'))).json()).status,'no_verified_eu_stock');
+ assert.ok(!noStock.calls.some(c=>c.url.includes('freightCalculate')));
 });
 test('Quotes missing a price or numeric transit estimate do not qualify',async()=>{
  const {handler}=fixture({methods:[{logisticName:'Unknown time',logisticPrice:8.07},{logisticName:'Unknown cost',logisticAging:'3-5'},{logisticName:'Placeholder',logisticPrice:0,logisticAging:'N/A'}]});

@@ -3,7 +3,7 @@ const countries = {DE:'germany',NL:'netherlands',FR:'france',GR:'greece',IT:'ita
 const stores = ['tech','home','pets','beauty','fashion','kids','auto'];
 const cjBase = 'https://developers.cjdropshipping.com/api2.0/v1/';
 const cacheMs = 300000;
-export function createShippingHandler({dbFactory=store, fetcher=fetch, env=process.env, storefrontConfig}={}) {
+export function createShippingHandler({dbFactory=store, fetcher=fetch, env=process.env, storefrontConfig, probeSku='CJQT25986940004'}={}) {
   let tokenPending;
   async function cj(path, token, body) {
     const response = await fetcher(cjBase+path,{method:body?'POST':'GET',redirect:'error',signal:AbortSignal.timeout(12000),headers:{'Content-Type':'application/json',...(token?{'CJ-Access-Token':token}:{})},...(body?{body:JSON.stringify(body)}:{})});
@@ -45,6 +45,30 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
     if(!env.CJ_API_KEY)return reply({status:'not_connected',methods:[]});
     try {
       const url=new URL(req.url);
+      // Fixed, public CJ catalog SKU for an end-to-end supplier smoke check.
+      // This does not publish or qualify a Shopify product for purchase.
+      if (url.searchParams.get('check') === 'supplier-sample') {
+        const db=await dbFactory(req);
+        const key='shipping/private/supplier-probe';
+        const cached=await db.get(key,{type:'json'});
+        if(cached?.expiresAt>Date.now())return reply(cached);
+        await limit(db,'shipping:probe:global',1,60000);
+        const access=await token(db);
+        const stocks=await cj('product/stock/queryBySku?sku='+encodeURIComponent(probeSku),access);
+        const origins=[...new Set((Array.isArray(stocks)?stocks:[]).filter(s=>countries[s.countryCode]&&Number(s.totalInventoryNum)>=1).map(s=>s.countryCode))];
+        let value={status:'no_verified_eu_stock',origins,methods:[]};
+        if(origins.length){
+          const variants=await cj('product/variant/query?variantSku='+encodeURIComponent(probeSku),access);
+          const matches=Array.isArray(variants)?variants.filter(v=>v.variantSku===probeSku):[];
+          if(matches.length!==1||!matches[0].vid)throw new Error('Supplier variant unavailable');
+          const from=origins.includes('NL')?'NL':origins[0];
+          const options=await cj('logistic/freightCalculate',access,{startCountryCode:from,endCountryCode:'NL',products:[{vid:matches[0].vid,quantity:1}]});
+          const methods=(Array.isArray(options)?options:[]).filter(o=>typeof o.logisticName==='string'&&typeof o.logisticAging==='string'&&/^\d+(?:\s*-\s*\d+)?$/.test(o.logisticAging.trim())&&o.logisticPrice!==null&&o.logisticPrice!==''&&Number.isFinite(Number(o.logisticPrice))&&Number(o.logisticPrice)>=0).map(o=>({name:o.logisticName,transport:o.logisticAging,supplierCost:{amount:String(o.logisticPrice),currencyCode:'USD'}}));
+          value={status:methods.length?'available':'unavailable',origins,from,destination:'NL',methods};
+        }
+        value.checkedAt=new Date().toISOString();value.expiresAt=Date.now()+cacheMs;
+        await db.setJSON(key,value);return reply(value);
+      }
       // Report connectivity only; never expose the supplier credential or token.
       if (url.searchParams.get('check') === 'connection') {
         const db=await dbFactory(req);
