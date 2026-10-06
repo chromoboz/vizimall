@@ -14,7 +14,7 @@ export async function discoverDestinations({db,key,codes,priority=[],probe,now=(
  const pending=ordered.filter(c=>!checked.has(c)&&!deferred.has(c)&&!(failures[c]>started-30000)).slice(0,batchSize);
  let index=0;
  try{
-  await Promise.all(Array.from({length:3},async()=>{
+  await Promise.all(Array.from({length:1},async()=>{
    while(index<pending.length&&now()<started+budgetMs){
     const code=pending[index++];
     try{const canShip=await probe(code,Math.max(1,started+budgetMs-now()));checked.add(code);delete failures[code];if(canShip)available.add(code);else available.delete(code);}

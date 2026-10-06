@@ -6,9 +6,19 @@ const countries = {DE:'germany',NL:'netherlands',FR:'france',GR:'greece',IT:'ita
 const stores = ['tech','home','pets','beauty','fashion','kids','auto'];
 const cjBase = 'https://developers.cjdropshipping.com/api2.0/v1/';
 const cacheMs = 300000;
-export function createShippingHandler({dbFactory=store, fetcher=fetch, env=process.env, storefrontConfig, probeSku='CJQT25986940004',probeSkus=[],pricing=false,catalogMetadata=false,allowUnavailable=false}={}) {
-  let tokenPending;
+export function createShippingHandler({dbFactory=store, fetcher=fetch, env=process.env, storefrontConfig, probeSku='CJQT25986940004',probeSkus=[],pricing=false,catalogMetadata=false,allowUnavailable=false,supplierPacingMs=1100}={}) {
+  let tokenPending, supplierDb;
   async function cj(path, token, body, timeoutMs=12000) {
+    // CJ free accounts allow one call per second. Share the slot across functions.
+    if(supplierDb&&supplierPacingMs>0){
+      const reserved=await update(supplierDb,'shipping/private/cj-call-slot',old=>{
+        const at=Math.max(Date.now(),old?.nextAt||0);
+        if(at>Date.now()+2500)throw Error('Supplier connection is busy');
+        return{nextAt:at+supplierPacingMs,expiresAt:at+60000};
+      });
+      const wait=reserved.nextAt-supplierPacingMs-Date.now();
+      if(wait>0)await new Promise(resolve=>setTimeout(resolve,wait));
+    }
     const response = await fetcher(cjBase+path,{method:body?'POST':'GET',redirect:'error',signal:AbortSignal.timeout(Math.min(12000,timeoutMs)),headers:{'Content-Type':'application/json',...(token?{'CJ-Access-Token':token}:{})},...(body?{body:JSON.stringify(body)}:{})});
     const data = await response.json();
     if (!response.ok || data.result === false || data.code !== 200) {
@@ -76,7 +86,7 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
         const sku=url.searchParams.get('sku')||probeSku;
         const destination=url.searchParams.get('destination')||'DE';
         if(![probeSku,...probeSkus].includes(sku)||!globalThis.VizimallDestinations.valid(destination))return reply({error:'Invalid supplier check'},400);
-        const db=await dbFactory(req);
+        const db=await dbFactory(req);supplierDb=db;
         const requestedFrom=url.searchParams.get('from');
         if(requestedFrom&&!countries[requestedFrom])return reply({error:'Invalid supplier origin'},400);
         const key='shipping/private/supplier-probe/'+hash(JSON.stringify(requestedFrom||catalogMetadata?[sku,destination,requestedFrom,catalogMetadata]:[sku,destination]));
@@ -109,7 +119,7 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
       }
       // Report connectivity only; never expose the supplier credential or token.
       if (url.searchParams.get('check') === 'connection') {
-        const db=await dbFactory(req);
+        const db=await dbFactory(req);supplierDb=db;
         await limit(db,'shipping:connection:'+(context.ip||'unknown'),5,60000);
         await token(db);
         return reply({status:'connected'});
@@ -117,7 +127,7 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
       const id=url.searchParams.get('variant'), destination=url.searchParams.get('shipping'), browsing=url.searchParams.get('country'), category=url.searchParams.get('store'), requestedOrigin=url.searchParams.get('from');
       const quantity=Number(url.searchParams.get('quantity')||1);
       if(!/^gid:\/\/shopify\/ProductVariant\/\d+$/.test(id||'')||!globalThis.VizimallDestinations.valid(destination)||!countries[browsing]||!stores.includes(category)||!Number.isInteger(quantity)||quantity<1||quantity>99||(requestedOrigin&&requestedOrigin!==browsing))return reply({error:'Invalid shipping request'},400);
-      const db=await dbFactory(req);
+      const db=await dbFactory(req);supplierDb=db;
       await limit(db,'shipping:'+ (context.ip||'unknown'),60,60000);
       // Recheck current Shopify eligibility before returning even a cached quote.
       const variant=await product(id,browsing);

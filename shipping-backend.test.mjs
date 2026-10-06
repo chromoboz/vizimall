@@ -15,7 +15,7 @@ function fixture(overrides={}){
  else if(url.includes('stock/query'))data=overrides.stock||[{countryCode:'DE',totalInventoryNum:10},{countryCode:'CN',totalInventoryNum:100}];
  else if(url.includes('freightCalculate'))data=(typeof overrides.methods==='function'?overrides.methods(JSON.parse(options.body)):overrides.methods)||[{logisticName:'CJPacket',logisticPrice:8.07,logisticAging:'3-5'}];
  return Response.json({result:true,code:200,data});};
- return {calls,db,handler:createShippingHandler({dbFactory:async()=>db,fetcher,env:{CJ_API_KEY:'test-secret'},storefrontConfig:settings,probeSku:'CJTEST-1',pricing:overrides.pricing||false,allowUnavailable:overrides.allowUnavailable||false})};
+ return {calls,db,handler:createShippingHandler({dbFactory:async()=>db,fetcher,env:{CJ_API_KEY:'test-secret'},storefrontConfig:settings,probeSku:'CJTEST-1',pricing:overrides.pricing||false,allowUnavailable:overrides.allowUnavailable||false,supplierPacingMs:0})};
 }
 test('Absent CJ configuration performs no supplier requests',async()=>{const handler=createShippingHandler({env:{},fetcher:()=>{throw Error('must not call')}});assert.equal((await (await handler(new Request(base))).json()).status,'not_connected');});
 test('CJ variant parameter rejection falls back to product details and still requires an exact SKU',async()=>{
