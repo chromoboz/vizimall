@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const markets = window.VIZIMALL_MARKETS;
+  const markets = Object.fromEntries(window.VizimallDestinations.codes.map(code => [code,{name:window.VizimallDestinations.name(code)}]));
   const key = 'vizimall-shipping-country-v1';
   const valid = code => typeof code === 'string' && Object.hasOwn(markets, code);
   const url = new URL(location.href);

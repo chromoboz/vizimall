@@ -1,5 +1,7 @@
 (function (root) {
   'use strict';
+  if (typeof module !== 'undefined') require('./shipping-destinations.js');
+  const validDestination = code => root.VizimallDestinations.valid(code);
   const countries = Object.freeze({ DE: 'germany', FR: 'france', NL: 'netherlands', PL: 'poland', ES: 'spain', PT: 'portugal', IT: 'italy', GR: 'greece' });
   const stores = Object.freeze(['tech', 'home', 'pets', 'beauty', 'fashion', 'kids', 'auto']);
   function routing(country, store) {
@@ -45,8 +47,9 @@
     async function products(country, store, after = null, options = {}) {
       const { countryTag, storeTag } = routing(country, store);
       const shippingCountry = options.shippingCountry || country;
-      const shippingTag = routing(shippingCountry, store).countryTag;
-      const terms = [...new Set([countryTag, shippingTag, storeTag])].map(tag => 'tag:' + tag);
+      if (!validDestination(shippingCountry)) throw new Error('Choose a supported delivery country.');
+      // Collection tags identify the supplier's storefront, not destinations.
+      const terms = [countryTag, storeTag].map(tag => 'tag:' + tag);
       const quote = value => '"' + value.replace(/[\\"():*]/g, character => '\\' + character) + '"';
       for (const word of String(options.search || '').trim().split(/\s+/).filter(Boolean)) terms.push('title:' + quote(word) + '*');
       if (options.inStock) terms.push('available_for_sale:true');
@@ -59,11 +62,11 @@
         }
       }`, { country: shippingCountry, filter: terms.join(' AND '), after }, options.signal);
       // Also check exact tags locally: Shopify search indexing can lag behind edits.
-      return { products: data.products.nodes.filter(p => matches(p, country, store) && matches(p, shippingCountry, store)), pageInfo: data.products.pageInfo };
+      return { products: data.products.nodes.filter(p => matches(p, country, store)), pageInfo: data.products.pageInfo };
     }
     async function product(country, store, id, signal, shippingCountry = country) {
       routing(country, store);
-      routing(shippingCountry, store);
+      if (!validDestination(shippingCountry)) throw new Error('Choose a supported delivery country.');
       let after = null, item, variants = [];
       do {
         const data = await request(`query Product($country: CountryCode!, $id: ID!, $after: String) @inContext(country: $country) {
@@ -73,7 +76,6 @@
         }`, { country: shippingCountry, id, after }, signal);
         item = data.product;
         if (!item || !matches(item, country, store)) throw new Error('This product is no longer available in this store.');
-        if (!matches(item, shippingCountry, store)) throw new Error('Not available for shipping to ' + countries[shippingCountry] + '.');
         variants.push(...item.variants.nodes);
         const page = item.variants.pageInfo;
         if (page.hasNextPage && (!page.endCursor || page.endCursor === after)) throw new Error('Unable to load all product options.');
@@ -82,7 +84,7 @@
       return { ...item, images: item.images?.nodes || [], variants };
     }
     async function checkout(country, lines) {
-      if (!Object.hasOwn(countries, country) || !Array.isArray(lines) || !lines.length || lines.length > 50) throw new Error('Please review your cart.');
+      if (!validDestination(country) || !Array.isArray(lines) || !lines.length || lines.length > 50) throw new Error('Please review your cart.');
       const verified = [];
       // Revalidate country/store eligibility and current stock at checkout.
       const details = await Promise.all(lines.map(line => product(line.browsingCountry || country, line.store, line.productId, undefined, country)));
@@ -91,6 +93,7 @@
         if (!variant || !Number.isInteger(line.quantity) || line.quantity < 1 || line.quantity > 99) {
           throw new Error('An item is no longer available. Remove it or select another option.');
         }
+        if(line.price&&(line.price.currencyCode!==variant.price?.currencyCode||Number(line.price.amount)!==Number(variant.price?.amount)))throw new Error('The checkout price changed. Please refresh the shipping quote.');
         verified.push({ merchandiseId: variant.id, quantity: line.quantity });
       });
       const data = await request(`mutation Checkout($country: CountryCode!, $input: CartInput!) @inContext(country: $country) {

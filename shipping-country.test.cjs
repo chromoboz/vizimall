@@ -4,18 +4,29 @@ require('./storefront-api.js');require('./delivery-info.js');
 const config={domain:'example.myshopify.com',publicToken:'public',apiVersion:'2026-10'};
 const item={id:'gid://shopify/Product/1',tags:['country-germany','country-greece','store-tech'],variants:{nodes:[{id:'gid://shopify/ProductVariant/1',availableForSale:true}],pageInfo:{hasNextPage:false}},images:{nodes:[]}};
 const client=reply=>globalThis.VizimallStorefront.createClient(config,async(u,o)=>({ok:true,json:async()=>({data:reply(JSON.parse(o.body))})}));
-test('Browsing country, destination and store all constrain paginated queries',async()=>{
- const c=client(({variables})=>{assert.equal(variables.country,'GR');assert.match(variables.filter,/tag:country-germany AND tag:country-greece AND tag:store-tech/);return {products:{nodes:[item,{...item,tags:['country-germany','store-tech']}],pageInfo:{hasNextPage:false}}};});
- assert.equal((await c.products('DE','tech',null,{shippingCountry:'GR'})).products.length,1);
+test('Delivery country does not add products to another supplier storefront',async()=>{
+ const german={...item,tags:['country-germany','store-tech']};
+ const c=client(({variables})=>{assert.equal(variables.country,'GR');assert.equal(variables.filter,'tag:country-germany AND tag:store-tech');return {products:{nodes:[german,{...item,tags:['country-greece','store-tech']}],pageInfo:{hasNextPage:false}}};});
+ assert.deepEqual((await c.products('DE','tech',null,{shippingCountry:'GR'})).products,[german]);
+ assert.equal(globalThis.VizimallStorefront.matches(german,'GR','tech'),false);
 });
-test('Direct detail and checkout cannot bypass destination eligibility',async()=>{
+test('Direct detail requires supplier/store tags while accepting worldwide destinations',async()=>{
  const c=client(()=>({product:{...item,tags:['country-germany','store-tech']}}));
- await assert.rejects(c.product('DE','tech',item.id,undefined,'GR'),/Not available/);
- await assert.rejects(c.checkout('GR',[{productId:item.id,variantId:'gid://shopify/ProductVariant/1',quantity:1,store:'tech',browsingCountry:'DE'}]),/Not available/);
+ assert.equal((await c.product('DE','tech',item.id,undefined,'US')).id,item.id);
+ await assert.rejects(c.product('GR','tech',item.id,undefined,'US'),/no longer available/);
+ await assert.rejects(c.product('DE','home',item.id,undefined,'US'),/no longer available/);
+ await assert.rejects(c.product('DE','tech',item.id,undefined,'ZZ'),/supported delivery/);
 });
 test('Checkout prices and buyer identity use destination, retaining browsing eligibility',async()=>{
  const c=client(({query,variables})=>{assert.equal(variables.country,'GR');if(query.includes('query Product'))return {product:item};assert.equal(variables.input.buyerIdentity.countryCode,'GR');return {cartCreate:{cart:{totalQuantity:1,checkoutUrl:'https://example.myshopify.com/checkouts/test'},userErrors:[],warnings:[]}};});
  assert.match(await c.checkout('GR',[{productId:item.id,variantId:'gid://shopify/ProductVariant/1',quantity:1,store:'tech',browsingCountry:'DE'}]),/checkouts/);
+});
+test('A changed native destination price blocks checkout before creating a cart',async()=>{
+ let cartCreated=false;
+ const priced={...item,variants:{nodes:[{id:'gid://shopify/ProductVariant/1',availableForSale:true,price:{amount:'25.00',currencyCode:'EUR'}}],pageInfo:{hasNextPage:false}}};
+ const c=client(({query})=>{if(query.includes('query Product'))return{product:priced};cartCreated=true;return{};});
+ await assert.rejects(c.checkout('GR',[{productId:item.id,variantId:'gid://shopify/ProductVariant/1',quantity:1,store:'tech',browsingCountry:'DE',price:{amount:'29.10',currencyCode:'EUR'}}]),/checkout price changed/);
+ assert.equal(cartCreated,false);
 });
 test('Legacy supplier average, decimal cost and processing qualifier retain their meaning',()=>{
  const nl={description:'Estimated delivery: supplier-reported average of 2 days to the Netherlands; this is an estimate. Netherlands shipping: €7.95 per order.'};

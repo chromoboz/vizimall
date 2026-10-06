@@ -24,3 +24,9 @@ test('Preview deploys perform no authentication; an incomplete catalog cannot wr
  await createPricingJob({production:false,dbFactory:()=>{throw Error('must not access')}})();
  const f=fixture({pagination:true});await assert.rejects(createPricingJob({...f.args,apply:true})());assert.equal(f.mutations.length,0);
 });
+test('Pagination advances beyond a page with no matching supplier variants',async()=>{
+ const f=fixture(),seen=[];
+ const admin=async(query,variables)=>{seen.push(variables.after);return{shop:{currencyCode:'EUR'},productVariants:{nodes:[],pageInfo:{hasNextPage:!variables.after,endCursor:variables.after?null:'next-page'}}};};
+ const job=createPricingJob({...f.args,adminFactory:()=>admin});await job();await job();
+ assert.deepEqual(seen,[null,'next-page']);assert.equal(f.values.get('shipping/private/pricing-cursor').after,null);
+});
