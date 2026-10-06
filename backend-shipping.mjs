@@ -8,7 +8,12 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
   async function cj(path, token, body) {
     const response = await fetcher(cjBase+path,{method:body?'POST':'GET',redirect:'error',signal:AbortSignal.timeout(12000),headers:{'Content-Type':'application/json',...(token?{'CJ-Access-Token':token}:{})},...(body?{body:JSON.stringify(body)}:{})});
     const data = await response.json();
-    if (!response.ok || data.result === false || data.code !== 200) throw new Error('Supplier connection unavailable');
+    if (!response.ok || data.result === false || data.code !== 200) {
+      const error=new Error('Supplier connection unavailable');
+      error.supplierCode=Number.isSafeInteger(data.code)?data.code:null;
+      error.supplierStep=path.split('?')[0];
+      throw error;
+    }
     return data.data;
   }
   async function token(db) {
@@ -101,6 +106,6 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
       const methods=(Array.isArray(options)?options:[]).filter(o=>typeof o.logisticName==='string'&&o.logisticName.trim()&&o.logisticName.length<=200&&typeof o.logisticAging==='string'&&/^\d+(?:\s*-\s*\d+)?$/.test(o.logisticAging.trim())&&o.logisticPrice!==null&&o.logisticPrice!==''&&Number.isFinite(Number(o.logisticPrice))&&Number(o.logisticPrice)>=0).map(o=>({name:o.logisticName,transport:o.logisticAging.trim(),supplierCost:{amount:String(o.logisticPrice),currencyCode:'USD'}}));
       const value={status:methods.length?'available':'unavailable',origins,from,destination,quantity,methods,checkedAt:new Date().toISOString(),expiresAt:Date.now()+cacheMs};
       await db.setJSON(key,value);return reply(value);
-    }catch{return reply({status:'temporarily_unavailable',methods:[]},503);}
+    }catch(error){return reply({status:'temporarily_unavailable',methods:[],...(error.supplierCode!=null?{supplierCode:error.supplierCode,supplierStep:error.supplierStep}: {})},503);}
   };
 }
