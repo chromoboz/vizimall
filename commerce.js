@@ -80,11 +80,44 @@
     delivery.replaceChildren(element('h3', '', 'Delivery'));
     const shipLabel = element('label', 'delivery-country', 'Ship to: ');
     const selector = element('select'); selector.setAttribute('aria-label', 'Product shipping country');
-    for (const code of window.VizimallDestinations.codes) {
-      const target={name:window.VizimallDestinations.name(code)};
-      const option = element('option', '', target.name); option.value = code; selector.append(option);
+    let destinationCodes=new Set(), discoveryIdentity='', discoveryController, discoveryTimer;
+    const destinationStatus=element('p','delivery-source','Checking available delivery countries…');
+    destinationStatus.setAttribute('role','status');
+    function setDestinations(codes) {
+      destinationCodes=new Set(codes.filter(code=>window.VizimallDestinations.valid(code)));
+      selector.replaceChildren();
+      const placeholder=element('option','','Choose delivery country');placeholder.value='';placeholder.disabled=true;selector.append(placeholder);
+      for(const code of [...destinationCodes].sort((a,b)=>window.VizimallDestinations.name(a).localeCompare(window.VizimallDestinations.name(b)))){
+        const option=element('option','',window.VizimallDestinations.name(code));option.value=code;selector.append(option);
+      }
+      selector.value=destinationCodes.has(shippingCountry)?shippingCountry:'';
+      selector.disabled=destinationCodes.size===0;
     }
-    selector.value = shippingCountry;
+    setDestinations([]);
+    function discover(variantId) {
+      const identity=variantId+'|'+quantity.value;
+      if(!variantId||identity===discoveryIdentity)return;
+      discoveryIdentity=identity;discoveryController?.abort();clearTimeout(discoveryTimer);setDestinations([]);
+      destinationStatus.textContent='Checking available delivery countries…';
+      discoveryController=new AbortController();
+      async function next() {
+        if(discoveryController.signal.aborted||!delivery.isConnected)return;
+        if(document.visibilityState==='hidden'){discoveryTimer=setTimeout(next,15000);return;}
+        const controller=discoveryController;
+        try{
+          const query=new URLSearchParams({check:'destinations',variant:variantId,country,store,shipping:shippingCountry,quantity:quantity.value});
+          const response=await fetch('/.netlify/functions/shipping?'+query,{credentials:'same-origin',signal:AbortSignal.any([controller.signal,AbortSignal.timeout(45000)])});
+          const result=await response.json();
+          if(controller.signal.aborted||identity!==discoveryIdentity)return;
+          if(!response.ok)throw Error('Destination check unavailable');
+          if(!Array.isArray(result.destinations)){destinationStatus.textContent='Delivery countries could not be confirmed for this option.';return;}
+          setDestinations([...destinationCodes,...result.destinations]);
+          destinationStatus.textContent=result.status==='complete'?(destinationCodes.size?'Only destinations confirmed by CJ are listed.':'CJ has no confirmed delivery destinations for this option.'):destinationCodes.size+' delivery countries confirmed. Checking more…';
+          if(result.status!=='complete')discoveryTimer=setTimeout(next,Math.max(8000,result.retryAfterMs||8000));
+        }catch(error){if(!controller.signal.aborted){destinationStatus.textContent='Only confirmed countries are shown. Checking additional destinations…';discoveryTimer=setTimeout(next,15000);}}
+      }
+      discoveryTimer=setTimeout(next,0);
+    }
     selector.addEventListener('change', () => {
       shippingCountry = window.VizimallShipping.remember(selector.value);
       destination.name = window.VizimallDestinations.name(shippingCountry);
@@ -93,7 +126,7 @@
       save();
       renderDelivery(lastVariant, originControl.value || undefined);
     });
-    shipLabel.append(selector); delivery.append(shipLabel);
+    shipLabel.append(selector); delivery.append(shipLabel,destinationStatus);
     const quantityLabel = element('label', 'delivery-country', 'Quantity: ');
     const quantity = element('input'); quantity.type = 'number'; quantity.min = '1'; quantity.max = '99'; quantity.value = '1'; quantity.setAttribute('aria-label','Shipping quote quantity');
     quantityLabel.append(quantity); delivery.append(quantityLabel);
@@ -106,6 +139,7 @@
     let lastVariant, requestNumber = 0, quoteController;
     function renderDelivery(variantId, from) {
       lastVariant = variantId;
+      discover(variantId);
       delivery.dispatchEvent(new CustomEvent('vizimall-shipping-quote',{detail:{variantId,quote:null},bubbles:true}));
       quoteController?.abort(); const requestId = ++requestNumber;
       methodLabel.hidden = originLabel.hidden = true;
@@ -126,8 +160,9 @@
         if (requestId !== requestNumber || !delivery.isConnected) return;
         if(quote.status!=='available')delivery.dispatchEvent(new CustomEvent('vizimall-shipping-quote',{detail:{variantId,quote},bubbles:true}));
         if (quote.status === 'not_connected' || quote.status === 'not_mapped') return;
-        if (quote.status === 'unavailable') { table.replaceChildren(element('dt','','Availability'),element('dd','','No shipping option available for this quantity and destination.')); note.textContent='Choose another destination or quantity.'; return; }
+        if (quote.status === 'unavailable') { destinationCodes.delete(shippingCountry);setDestinations([...destinationCodes]); table.replaceChildren(element('dt','','Availability'),element('dd','','No shipping option available for this quantity and destination.')); note.textContent='Choose another destination or quantity.'; return; }
         if (quote.status !== 'available') { note.textContent='Live shipping information is temporarily unavailable. '+route.note; return; }
+        destinationCodes.add(shippingCountry);setDestinations([...destinationCodes]);
         originControl.replaceChildren();
         for (const code of quote.origins) { const option=element('option','',window.VIZIMALL_MARKETS[code]?.name||code); option.value=code; originControl.append(option); }
         originControl.value=quote.from; originLabel.hidden=false;
@@ -153,7 +188,7 @@
     quantity.addEventListener('change',()=>renderDelivery(lastVariant,originControl.value||undefined));
     originControl.addEventListener('change',()=>renderDelivery(lastVariant,originControl.value));
     const refresh=setInterval(()=>{if(delivery.isConnected&&document.visibilityState==='visible')renderDelivery(lastVariant,originControl.value||undefined);},300000);
-    const cleanup=new MutationObserver(()=>{if(!delivery.isConnected){clearInterval(refresh);quoteController?.abort();cleanup.disconnect();}});
+    const cleanup=new MutationObserver(()=>{if(!delivery.isConnected){clearInterval(refresh);quoteController?.abort();discoveryController?.abort();clearTimeout(discoveryTimer);cleanup.disconnect();}});
     cleanup.observe(document.body,{childList:true});
     renderDelivery();
     return { details, delivery, renderDelivery };

@@ -13,7 +13,7 @@ function fixture(overrides={}){
  else if(url.includes('variant/query')){if(overrides.variantParameterError)return Response.json({result:false,code:1600300,message:'Param error'});data=[{vid:'cj-variant',variantSku:'CJTEST-1'}];}
  else if(url.includes('product/query'))data={variants:overrides.detailVariants||[{vid:'cj-variant',variantSku:'CJTEST-1'}]};
  else if(url.includes('stock/query'))data=overrides.stock||[{countryCode:'DE',totalInventoryNum:10},{countryCode:'CN',totalInventoryNum:100}];
- else if(url.includes('freightCalculate'))data=overrides.methods||[{logisticName:'CJPacket',logisticPrice:8.07,logisticAging:'3-5'}];
+ else if(url.includes('freightCalculate'))data=(typeof overrides.methods==='function'?overrides.methods(JSON.parse(options.body)):overrides.methods)||[{logisticName:'CJPacket',logisticPrice:8.07,logisticAging:'3-5'}];
  return Response.json({result:true,code:200,data});};
  return {calls,db,handler:createShippingHandler({dbFactory:async()=>db,fetcher,env:{CJ_API_KEY:'test-secret'},storefrontConfig:settings,probeSku:'CJTEST-1',pricing:overrides.pricing||false})};
 }
@@ -84,4 +84,12 @@ test('Only matching, fresh, exact-SKU destination price confirmations enable che
   const f=fixture({pricing:true,variant:{...variant,price:{amount:'21.90',currencyCode:'EUR'}},entries:[['shipping/private/context-price/1/GR',record]]});
   const quote=await(await f.handler(new Request(base))).json();assert.equal(quote.pricing.checkoutReady,expected);
  }
+});
+
+test('Destination discovery returns only freight-supported countries for the current SKU, warehouse and quantity',async()=>{
+ const {handler,calls}=fixture({methods:body=>['DE','US'].includes(body.endCountryCode)?[{logisticName:'DHL',logisticPrice:0,logisticAging:'3-5'}]:[]});
+ const result=await(await handler(new Request(base+'&check=destinations'))).json();
+ assert.equal(result.status,'discovering');assert.deepEqual(result.destinations,['DE','US']);
+ for(const call of calls.filter(c=>c.url.includes('freightCalculate'))){assert.equal(call.body.startCountryCode,'DE');assert.equal(call.body.products[0].vid,'cj-variant');assert.equal(call.body.products[0].quantity,1);}
+ assert.ok(!JSON.stringify(result).includes('secret'));
 });

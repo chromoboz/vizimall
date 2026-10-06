@@ -1,5 +1,6 @@
 import { store, limit, hash, update } from './backend-persistence.mjs';
 import './shipping-destinations.js';
+import { discoverDestinations } from './backend-destinations.mjs';
 import { baselineForSync, cheapestMethod, includedPrice, parseEcbRates, shippingMethods } from './backend-included-pricing.mjs';
 const countries = {DE:'germany',NL:'netherlands',FR:'france',GR:'greece',IT:'italy',PL:'poland',PT:'portugal',ES:'spain'};
 const stores = ['tech','home','pets','beauty','fashion','kids','auto'];
@@ -7,8 +8,8 @@ const cjBase = 'https://developers.cjdropshipping.com/api2.0/v1/';
 const cacheMs = 300000;
 export function createShippingHandler({dbFactory=store, fetcher=fetch, env=process.env, storefrontConfig, probeSku='CJQT25986940004',probeSkus=[],pricing=false,catalogMetadata=false}={}) {
   let tokenPending;
-  async function cj(path, token, body) {
-    const response = await fetcher(cjBase+path,{method:body?'POST':'GET',redirect:'error',signal:AbortSignal.timeout(12000),headers:{'Content-Type':'application/json',...(token?{'CJ-Access-Token':token}:{})},...(body?{body:JSON.stringify(body)}:{})});
+  async function cj(path, token, body, timeoutMs=12000) {
+    const response = await fetcher(cjBase+path,{method:body?'POST':'GET',redirect:'error',signal:AbortSignal.timeout(Math.min(12000,timeoutMs)),headers:{'Content-Type':'application/json',...(token?{'CJ-Access-Token':token}:{})},...(body?{body:JSON.stringify(body)}:{})});
     const data = await response.json();
     if (!response.ok || data.result === false || data.code !== 200) {
       const error=new Error('Supplier connection unavailable');
@@ -134,6 +135,15 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
       const origins=[...new Set(originStock.map(s=>s.countryCode))];
       const from=browsing;
       if(!from||!origins.includes(from))return reply({status:'unavailable',origins,methods:[]});
+      if(url.searchParams.get('check')==='destinations'){
+        await limit(db,'shipping:discovery:'+(context.ip||'unknown'),20,60000);
+        const discoveryKey='shipping/private/destinations/'+hash(JSON.stringify([id,variant.sku,from,quantity]));
+        return reply(await discoverDestinations({db,key:discoveryKey,codes:globalThis.VizimallDestinations.codes,priority:[from,destination,'GR','GB','US','FR','NL','IT','ES','PL','PT'],probe:async(code,timeoutMs)=>{
+          await limit(db,'shipping:discovery-freight',60,60000);
+          const methods=shippingMethods(await cj('logistic/freightCalculate',access,{startCountryCode:from,endCountryCode:code,products:[{vid:matched.vid,quantity}]},timeoutMs));
+          return methods.length>0;
+        }}));
+      }
       const options=await cj('logistic/freightCalculate',access,{startCountryCode:from,endCountryCode:destination,products:[{vid:matched.vid,quantity}]});
       // A quote without both a price and a transit estimate must never qualify.
       const methods=shippingMethods(options);
