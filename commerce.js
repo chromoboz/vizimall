@@ -113,7 +113,7 @@
       quoteController = new AbortController();
       const query = new URLSearchParams({ variant:variantId, shipping:shippingCountry, country, store, quantity:quantity.value });
       if (from) query.set('from',from);
-      fetch('/api/shipping?'+query, { signal:quoteController.signal,credentials:'same-origin' }).then(response => response.json()).then(quote => {
+      fetch('/.netlify/functions/shipping?'+query, { signal:quoteController.signal,credentials:'same-origin' }).then(response => response.json()).then(quote => {
         if (requestId !== requestNumber || !delivery.isConnected) return;
         if (quote.status === 'not_connected' || quote.status === 'not_mapped') return;
         if (quote.status === 'unavailable') { table.replaceChildren(element('dt','','Availability'),element('dd','','No shipping option available for this quantity and destination.')); note.textContent='Choose another destination or quantity.'; return; }
@@ -199,7 +199,7 @@
         if (!client) throw connectionError;
         for (const line of cart) {
           const query=new URLSearchParams({variant:line.variantId,shipping:shippingCountry,country:line.browsingCountry||country,store:line.store,quantity:line.quantity});
-          const response=await fetch('/api/shipping?'+query,{credentials:'same-origin',signal:AbortSignal.timeout(15000)});
+          const response=await fetch('/.netlify/functions/shipping?'+query,{credentials:'same-origin',signal:AbortSignal.timeout(15000)});
           const quote=await response.json();
           if(!response.ok||quote.status!=='available'||!quote.methods?.length) throw new Error('Shipping cost and delivery time could not be verified. Please try again before checking out.');
         }
