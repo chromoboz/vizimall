@@ -86,7 +86,7 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
           const observedMethods=(Array.isArray(options)?options:[]).map(o=>({name:typeof o.logisticName==='string'?o.logisticName.slice(0,200):null,transport:typeof o.logisticAging==='string'?o.logisticAging.slice(0,100):null,price:['string','number'].includes(typeof o.logisticPrice)?String(o.logisticPrice).slice(0,30):null}));
           value={status:methods.length?'available':'unavailable',origins,from,destination,methods,observedMethods};
         }
-        value.checkedAt=new Date().toISOString();value.expiresAt=Date.now()+cacheMs;
+        value.sku=sku;value.quantity=1;value.checkedAt=new Date().toISOString();value.expiresAt=Date.now()+cacheMs;
         await db.setJSON(key,value);return reply(value);
       }
       // Report connectivity only; never expose the supplier credential or token.
@@ -118,7 +118,7 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
       const options=await cj('logistic/freightCalculate',access,{startCountryCode:from,endCountryCode:destination,products:[{vid:matched.vid,quantity}]});
       // A quote without both a price and a transit estimate must never qualify.
       const methods=(Array.isArray(options)?options:[]).filter(o=>typeof o.logisticName==='string'&&o.logisticName.trim()&&o.logisticName.length<=200&&typeof o.logisticAging==='string'&&/^\d+(?:\s*-\s*\d+)?$/.test(o.logisticAging.trim())&&o.logisticPrice!==null&&o.logisticPrice!==''&&Number.isFinite(Number(o.logisticPrice))&&Number(o.logisticPrice)>=0).map(o=>({name:o.logisticName,transport:o.logisticAging.trim(),supplierCost:{amount:String(o.logisticPrice),currencyCode:'USD'}}));
-      const value={status:methods.length?'available':'unavailable',origins,from,destination,quantity,methods,checkedAt:new Date().toISOString(),expiresAt:Date.now()+cacheMs};
+      const value={status:methods.length?'available':'unavailable',sku:variant.sku,origins,from,destination,quantity,methods,checkedAt:new Date().toISOString(),expiresAt:Date.now()+cacheMs};
       await db.setJSON(key,value);return reply(value);
     }catch(error){return reply({status:'temporarily_unavailable',methods:[],...(error.supplierCode!=null?{supplierCode:error.supplierCode,supplierStep:error.supplierStep}: {})},503);}
   };
