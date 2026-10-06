@@ -44,7 +44,7 @@ export function createContextPricingJob({production=false,storefrontConfig,env=p
       }
       const baseKey='shipping/private/base-price/'+job.variantId.split('/').at(-1);
       await update(db,baseKey,previous=>({baseUnitPrice:previous?.baseUnitPrice&&previous.globalLastSeen===fresh.node.price?previous.baseUnitPrice:baselineForSync({amount:fresh.node.price,currencyCode:'EUR'},previous),globalLastSeen:fresh.node.price,lastWritten:fresh.node.contextualPricing.price}));
-      const quoteHandler=shippingFactory({dbFactory:async()=>db,fetcher:boundedFetch,env,storefrontConfig,pricing:true,catalogMetadata:true});
+      const quoteHandler=shippingFactory({dbFactory:async()=>db,fetcher:boundedFetch,env,storefrontConfig,pricing:true,catalogMetadata:true,allowUnavailable:true});
       const response=await quoteHandler(new Request('https://vizimall.com/api/shipping?'+new URLSearchParams({variant:job.variantId,country:job.browsing,store:job.category,shipping:job.destination,quantity:'1'})));
       const quote=await response.json();
       if(!response.ok)throw Error('Supplier quote temporarily unavailable');

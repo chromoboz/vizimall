@@ -15,7 +15,7 @@ function fixture(overrides={}){
  else if(url.includes('stock/query'))data=overrides.stock||[{countryCode:'DE',totalInventoryNum:10},{countryCode:'CN',totalInventoryNum:100}];
  else if(url.includes('freightCalculate'))data=(typeof overrides.methods==='function'?overrides.methods(JSON.parse(options.body)):overrides.methods)||[{logisticName:'CJPacket',logisticPrice:8.07,logisticAging:'3-5'}];
  return Response.json({result:true,code:200,data});};
- return {calls,db,handler:createShippingHandler({dbFactory:async()=>db,fetcher,env:{CJ_API_KEY:'test-secret'},storefrontConfig:settings,probeSku:'CJTEST-1',pricing:overrides.pricing||false})};
+ return {calls,db,handler:createShippingHandler({dbFactory:async()=>db,fetcher,env:{CJ_API_KEY:'test-secret'},storefrontConfig:settings,probeSku:'CJTEST-1',pricing:overrides.pricing||false,allowUnavailable:overrides.allowUnavailable||false})};
 }
 test('Absent CJ configuration performs no supplier requests',async()=>{const handler=createShippingHandler({env:{},fetcher:()=>{throw Error('must not call')}});assert.equal((await (await handler(new Request(base))).json()).status,'not_connected');});
 test('CJ variant parameter rejection falls back to product details and still requires an exact SKU',async()=>{
@@ -99,4 +99,11 @@ test('Sold-out storefront products may display confirmed destinations but cannot
  assert.equal((await(await handler(new Request(base))).json()).status,'unavailable');
  const discovery=await(await handler(new Request(base+'&check=destinations'))).json();
  assert.ok(discovery.destinations.includes('DE'));
+});
+
+test('Only the private configuration worker may quote a not-yet-purchasable variant after CJ stock verification',async()=>{
+ const {handler}=fixture({variant:{...variant,availableForSale:false},allowUnavailable:true});
+ const quote=await(await handler(new Request(base))).json();assert.equal(quote.status,'available');assert.equal(quote.stockQuantity,10);
+ const unavailable=fixture({variant:{...variant,availableForSale:false},allowUnavailable:true,stock:[{countryCode:'CN',totalInventoryNum:100}]});
+ assert.equal((await(await unavailable.handler(new Request(base))).json()).status,'unavailable');
 });

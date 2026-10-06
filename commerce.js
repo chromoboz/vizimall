@@ -80,7 +80,7 @@
     delivery.replaceChildren(element('h3', '', 'Delivery'));
     const shipLabel = element('label', 'delivery-country', 'Ship to: ');
     const selector = element('select'); selector.setAttribute('aria-label', 'Product shipping country');
-    let destinationCodes=new Set(), discoveryIdentity='', discoveryController, discoveryTimer;
+    let destinationCodes=new Set(), discoveryIdentity='', discoveryExpiresAt=0, discoveryController, discoveryTimer;
     const destinationStatus=element('p','delivery-source','Checking available delivery countries…');
     destinationStatus.setAttribute('role','status');
     function setDestinations(codes) {
@@ -96,7 +96,8 @@
     setDestinations([]);
     function discover(variantId) {
       const identity=variantId+'|'+quantity.value;
-      if(!variantId||identity===discoveryIdentity)return;
+      if(!variantId||(identity===discoveryIdentity&&(!discoveryExpiresAt||discoveryExpiresAt>Date.now())))return;
+      discoveryExpiresAt=0;
       discoveryIdentity=identity;discoveryController?.abort();clearTimeout(discoveryTimer);setDestinations([]);
       destinationStatus.textContent='Checking available delivery countries…';
       discoveryController=new AbortController();
@@ -111,8 +112,9 @@
           if(controller.signal.aborted||identity!==discoveryIdentity)return;
           if(!response.ok)throw Error('Destination check unavailable');
           if(!Array.isArray(result.destinations)){destinationStatus.textContent='Delivery countries could not be confirmed for this option.';return;}
+          discoveryExpiresAt=result.expiresAt||Date.now()+900000;
           setDestinations([...destinationCodes,...result.destinations]);
-          destinationStatus.textContent=result.status==='complete'?(destinationCodes.size?'Only destinations confirmed by CJ are listed.':'CJ has no confirmed delivery destinations for this option.'):destinationCodes.size+' delivery countries confirmed. Checking more…';
+          destinationStatus.textContent=result.status==='complete'?(destinationCodes.size?'Only destinations confirmed by CJ are listed.'+(result.unverified?' Some country checks could not be completed.':''):'CJ has no confirmed delivery destinations for this option.'):destinationCodes.size+' delivery countries confirmed. Checking more…';
           if(result.status!=='complete')discoveryTimer=setTimeout(next,Math.max(8000,result.retryAfterMs||8000));
         }catch(error){if(!controller.signal.aborted){destinationStatus.textContent='Only confirmed countries are shown. Checking additional destinations…';discoveryTimer=setTimeout(next,15000);}}
       }

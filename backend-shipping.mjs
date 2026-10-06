@@ -6,7 +6,7 @@ const countries = {DE:'germany',NL:'netherlands',FR:'france',GR:'greece',IT:'ita
 const stores = ['tech','home','pets','beauty','fashion','kids','auto'];
 const cjBase = 'https://developers.cjdropshipping.com/api2.0/v1/';
 const cacheMs = 300000;
-export function createShippingHandler({dbFactory=store, fetcher=fetch, env=process.env, storefrontConfig, probeSku='CJQT25986940004',probeSkus=[],pricing=false,catalogMetadata=false}={}) {
+export function createShippingHandler({dbFactory=store, fetcher=fetch, env=process.env, storefrontConfig, probeSku='CJQT25986940004',probeSkus=[],pricing=false,catalogMetadata=false,allowUnavailable=false}={}) {
   let tokenPending;
   async function cj(path, token, body, timeoutMs=12000) {
     const response = await fetcher(cjBase+path,{method:body?'POST':'GET',redirect:'error',signal:AbortSignal.timeout(Math.min(12000,timeoutMs)),headers:{'Content-Type':'application/json',...(token?{'CJ-Access-Token':token}:{})},...(body?{body:JSON.stringify(body)}:{})});
@@ -121,7 +121,7 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
       await limit(db,'shipping:'+ (context.ip||'unknown'),60,60000);
       // Recheck current Shopify eligibility before returning even a cached quote.
       const variant=await product(id,browsing);
-      if((!variant.availableForSale&&url.searchParams.get('check')!=='destinations')||![`country-${countries[browsing]}`,`store-${category}`].every(tag=>variant.product.tags.includes(tag)))return reply({status:'unavailable',methods:[]});
+      if((!variant.availableForSale&&!allowUnavailable&&url.searchParams.get('check')!=='destinations')||![`country-${countries[browsing]}`,`store-${category}`].every(tag=>variant.product.tags.includes(tag)))return reply({status:'unavailable',methods:[]});
       if(!/^CJ[A-Za-z0-9 _-]{3,190}$/.test(variant.sku||''))return reply({status:'not_mapped',methods:[]});
       const key='shipping/quotes/'+hash(JSON.stringify([id,variant.sku,destination,browsing,category,requestedOrigin,quantity]));
       const cached=await db.get(key,{type:'json'});if(cached?.expiresAt>Date.now()&&!pricing)return reply(cached);
