@@ -29,17 +29,19 @@ export async function assertShippingScopes(admin){
 }
 // Only the private scheduled worker can call this writer. Never take a price
 // supplied by a browser. Each destination retains its own native checkout price.
-export async function prepareDestinationPrice({admin,db,variantId,expectedSku,browsing,category,destination,quote,now=Date.now()}){
+export async function prepareDestinationPrice({admin,db,variantId,expectedSku,browsing,category,destination,quote,now=Date.now(),onStage=()=>{}}){
   if(!/^gid:\/\/shopify\/ProductVariant\/\d+$/.test(variantId||'')||!globalThis.VizimallDestinations.valid(destination)||quote?.status!=='available'||quote.sku!==expectedSku||quote.from!==browsing||quote.destination!==destination||quote.quantity!==1||!Number.isFinite(quote.expiresAt)||quote.expiresAt<=now||!quote.pricing?.unitPrice)throw Error('Fresh destination shipping quote required');
   const price=quote.pricing.unitPrice;
   if(price.currencyCode!=='EUR'||!/^\d+\.\d{2}$/.test(price.amount))throw Error('Destination currency requires configuration');
   const read=()=>admin(`query($id:ID!,$country:CountryCode!){shop{currencyCode} node(id:$id){... on ProductVariant{id sku price product{id tags status} contextualPricing(context:{country:$country}){price{amount currencyCode}} deliveryProfile{${profileFields}}}}}`,{id:variantId,country:destination});
+  onStage('variant_profile');
   const current=await read(),variant=current.node;
   if(variant?.sku!==expectedSku||current.shop?.currencyCode!=='EUR'||JSON.stringify(supplierContext(variant))!==JSON.stringify({browsing,category}))throw Error('Supplier tags or variant changed');
   const baseline=await db.get('shipping/private/base-price/'+variantId.split('/').at(-1),{type:'json'});
   if(baseline?.globalLastSeen!==variant.price)throw Error('Merchant base price changed');
   // Country-only markets. Do not reuse a regional market for a per-country price,
   // and never replace an existing merchant catalog or change product visibility.
+  onStage('market_lookup');
   let after=null,market;
   do{
     const result=await admin(`query($after:String){markets(first:100,after:$after){nodes{${marketFields}} pageInfo{hasNextPage endCursor}}}`,{after});
@@ -55,6 +57,7 @@ export async function prepareDestinationPrice({admin,db,variantId,expectedSku,br
   }
   if(market.status!=='ACTIVE'||market.catalogs?.pageInfo.hasNextPage)throw Error('Destination market needs merchant review');
   const title='Vizimall CJ shipping · '+destination;
+  onStage('price_catalog');
   let catalog=market.catalogs?.nodes.find(c=>c.title===title);
   if(!catalog){catalog=payload(await admin(`mutation($input:CatalogCreateInput!){catalogCreate(input:$input){catalog{id title status priceList{id currency}} userErrors{field message}}}`,{input:{title,status:'ACTIVE',context:{marketIds:[market.id]}}}),'catalogCreate').catalog;}
   if(catalog.status!=='ACTIVE')throw Error('Shipping catalog inactive');
@@ -62,6 +65,7 @@ export async function prepareDestinationPrice({admin,db,variantId,expectedSku,br
   if(!priceList){priceList=payload(await admin(`mutation($input:PriceListCreateInput!){priceListCreate(input:$input){priceList{id currency} userErrors{field message}}}`,{input:{name:title,currency:'EUR',catalogId:catalog.id,parent:{adjustment:{type:'PERCENTAGE_INCREASE',value:0}}}}),'priceListCreate').priceList;}
   if(priceList.currency!=='EUR')throw Error('Destination currency requires configuration');
   payload(await admin(`mutation($priceListId:ID!,$prices:[PriceListPriceInput!]!){priceListFixedPricesAdd(priceListId:$priceListId,prices:$prices){prices{variant{id} price{amount currencyCode}} userErrors{field message}}}`,{priceListId:priceList.id,prices:[{variantId,price}]}),'priceListFixedPricesAdd');
+  onStage('native_price_verification');
   // A dedicated variant profile prevents unsupported destinations from becoming
   // purchasable via an address change at checkout. Shopify profile limits fail
   // closed; no fallback to a rest-of-world free-shipping rate.
@@ -70,6 +74,7 @@ export async function prepareDestinationPrice({admin,db,variantId,expectedSku,br
   const name='Vizimall CJ route '+variantId.split('/').at(-1);
   const owned=variant.deliveryProfile?.name===name&&!variant.deliveryProfile.default&&!variant.deliveryProfile.coversAllItems;
   const existing=variant.deliveryProfile;
+  onStage('cj_location');
   const groups=existing?.profileLocationGroups||[];
   if(!groups.length||groups.length>5||groups.some(g=>g.locationGroup.locations.pageInfo.hasNextPage||g.locationGroupZones.pageInfo.hasNextPage))throw Error('Fulfillment locations require review');
   // CJ inventory stays at its app-managed location. Copying a merchant's physical
@@ -83,6 +88,7 @@ export async function prepareDestinationPrice({admin,db,variantId,expectedSku,br
     }
   }
   const zone={name:'CJ confirmed '+destination,countries:[{code:destination,includeAllProvinces:true}],methodDefinitionsToCreate:[{name:'Standard shipping included',active:true,description:'Standard shipping is included per item in the product price.',rateDefinition:{price:{amount:'0.00',currencyCode:'EUR'}}}]};
+  onStage('route_profile');
   const already=owned&&groups.every(g=>g.locationGroupZones.nodes.some(z=>z.zone.countries.length===1&&z.zone.countries[0].code.countryCode===destination&&!z.zone.countries[0].code.restOfWorld&&z.methodDefinitions.nodes.length===1&&z.methodDefinitions.nodes[0].active&&!z.methodDefinitions.nodes[0].methodConditions.length&&sameMoney(z.methodDefinitions.nodes[0].rateProvider.price,{amount:'0.00',currencyCode:'EUR'})));
   if(!already){
     if(owned){payload(await admin(`mutation($id:ID!,$profile:DeliveryProfileInput!){deliveryProfileUpdate(id:$id,profile:$profile){profile{id} userErrors{field message}}}`,{id:existing.id,profile:{locationGroupsToUpdate:groups.map(g=>({id:g.locationGroup.id,zonesToCreate:[zone]}))}}),'deliveryProfileUpdate');}
@@ -90,6 +96,7 @@ export async function prepareDestinationPrice({admin,db,variantId,expectedSku,br
       payload(await admin(`mutation($profile:DeliveryProfileInput!){deliveryProfileCreate(profile:$profile){profile{id} userErrors{field message}}}`,{profile:{name,variantsToAssociate:[variantId],locationGroupsToCreate:[{locationsToAdd:[fulfillmentLocationId],zonesToCreate:[zone]}]}}),'deliveryProfileCreate');
     }
   }
+  onStage('route_verification');
   const fresh=await read();
   if(fresh.node?.sku!==expectedSku||JSON.stringify(fresh.node?.product)!==JSON.stringify(variant.product)||!sameMoney(fresh.node?.contextualPricing?.price,price)||fresh.node.deliveryProfile?.name!==name)throw Error('Native checkout price or profile was not confirmed');
   const freshGroups=fresh.node.deliveryProfile.profileLocationGroups;

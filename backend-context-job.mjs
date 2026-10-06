@@ -45,6 +45,7 @@ export function createContextPricingJob({production=false,storefrontConfig,env=p
       const baseKey='shipping/private/base-price/'+job.variantId.split('/').at(-1);
       await update(db,baseKey,previous=>({baseUnitPrice:previous?.baseUnitPrice&&previous.globalLastSeen===fresh.node.price?previous.baseUnitPrice:baselineForSync({amount:fresh.node.price,currencyCode:'EUR'},previous),globalLastSeen:fresh.node.price,lastWritten:fresh.node.contextualPricing.price}));
       const quoteHandler=shippingFactory({dbFactory:async()=>db,fetcher:boundedFetch,env,storefrontConfig,pricing:true,catalogMetadata:true,allowUnavailable:true});
+      report.stage='supplier_quote';
       const response=await quoteHandler(new Request('https://vizimall.com/api/shipping?'+new URLSearchParams({variant:job.variantId,country:job.browsing,store:job.category,shipping:job.destination,quantity:'1'})));
       const quote=await response.json();
       if(!response.ok)throw Error('Supplier quote temporarily unavailable');
@@ -52,13 +53,13 @@ export function createContextPricingJob({production=false,storefrontConfig,env=p
         await revokeDestination({admin,db,variantId:job.variantId,destination:job.destination});
         report.status='route_unavailable';
       }else{
-        await prepare({admin,db,variantId:job.variantId,expectedSku:job.sku,browsing:job.browsing,category:job.category,destination:job.destination,quote});
+        await prepare({admin,db,variantId:job.variantId,expectedSku:job.sku,browsing:job.browsing,category:job.category,destination:job.destination,quote,onStage:stage=>{report.stage=stage;}});
         if(job.destination===job.browsing)await update(db,baseKey,previous=>({...previous,lastWritten:quote.pricing.unitPrice}));
         report.status='verified';
       }
       await update(db,'shipping/private/context-queue',old=>({items:(old?.items||[]).filter(i=>i.variantId!==job.variantId||i.destination!==job.destination)}));
       await update(db,'shipping/private/context-routes',old=>({items:[...(old?.items||[]).filter(i=>i.variantId!==job.variantId||i.destination!==job.destination),{...job,checkedAt:Date.now()}].slice(-2000)}));
-    }catch(error){report.status='failed';report.error=error.message==='Shipping and market permission required'?error.message:'Destination configuration or supplier validation failed';if(error.missingScopes)report.missingScopes=error.missingScopes;}
+    }catch(error){report.status='failed';report.error=error.message==='Shipping and market permission required'?error.message:'Destination configuration or supplier validation failed';if(['CJ fulfillment location requires review','CJ fulfillment groups require review','CJ fulfillment location was not confirmed','Ambiguous destination market','Destination market needs merchant review','Native country price not confirmed; shipping remains unchanged','Included shipping rate was not confirmed','Supplier quote temporarily unavailable'].includes(error.message))report.reason=error.message;if(error.missingScopes)report.missingScopes=error.missingScopes;}
     finally{
       if(locked){await db.setJSON('shipping/private/context-last-run',report);await db.setJSON('shipping/private/context-lease',{until:0});console.log(JSON.stringify(report));}
     }
