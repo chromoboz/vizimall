@@ -11,13 +11,12 @@ export function supplierContext(variant){
 function payload(data,key){const result=data?.[key];if(!result||result.userErrors?.length)throw Error('Shopify destination configuration was not confirmed');return result;}
 function sameMoney(a,b){return a?.currencyCode===b?.currencyCode&&Number(a.amount)===Number(b.amount);}
 const marketFields=`id name status conditions{conditionTypes regionsCondition{regions(first:250){nodes{... on MarketRegionCountry{code}} pageInfo{hasNextPage}}}} catalogs(first:100){nodes{id title status priceList{id currency}} pageInfo{hasNextPage}}`;
-const locationFields=`id isActive isFulfillmentService fulfillmentService{handle serviceName}`;
-const profileFields=`id name default coversAllItems unassignedLocationsPaginated(first:250){nodes{${locationFields}} pageInfo{hasNextPage}} profileLocationGroups{locationGroup{id locations(first:250){nodes{${locationFields}} pageInfo{hasNextPage}}} locationGroupZones(first:250){nodes{zone{id countries{code{countryCode restOfWorld}}} methodDefinitions(first:10){nodes{id active name methodConditions{__typename} rateProvider{... on DeliveryRateDefinition{price{amount currencyCode}}}} pageInfo{hasNextPage}}} pageInfo{hasNextPage}}}`;
-function cjLocation(profile){
-  const unassigned=profile?.unassignedLocationsPaginated;
-  if(!unassigned||unassigned.pageInfo.hasNextPage)throw Error('CJ fulfillment location requires review');
-  const locations=[...unassigned.nodes,...(profile.profileLocationGroups||[]).flatMap(g=>g.locationGroup.locations.nodes)];
-  const matches=[...new Map(locations.filter(l=>l.isActive&&l.isFulfillmentService&&[l.fulfillmentService?.handle,l.fulfillmentService?.serviceName].some(n=>String(n||'').toLowerCase()==='cjdropshipping')).map(l=>[l.id,l])).values()];
+const profileFields=`id name default coversAllItems profileLocationGroups{locationGroup{id locations(first:250,includeLegacy:true){nodes{id} pageInfo{hasNextPage}}} locationGroupZones(first:250){nodes{zone{id countries{code{countryCode restOfWorld}}} methodDefinitions(first:10){nodes{id active name methodConditions{__typename} rateProvider{... on DeliveryRateDefinition{price{amount currencyCode}}}} pageInfo{hasNextPage}}} pageInfo{hasNextPage}}}`;
+function cjLocation(services){
+  // The service registry is independent of a profile's assigned/unassigned
+  // location lists. Legacy app locations can disappear from those lists after
+  // assignment; their fulfillment service remains the authoritative owner.
+  const matches=[...new Map((services||[]).filter(s=>s.location?.id&&[s.handle,s.serviceName].some(n=>String(n||'').toLowerCase()==='cjdropshipping')).map(s=>[s.location.id,s.location])).values()];
   if(matches.length!==1)throw Error('CJ fulfillment location requires review');
   return matches[0].id;
 }
@@ -79,7 +78,7 @@ export async function prepareDestinationPrice({admin,db,variantId,expectedSku,br
   if(!groups.length||groups.length>5||groups.some(g=>g.locationGroup.locations.pageInfo.hasNextPage||g.locationGroupZones.pageInfo.hasNextPage))throw Error('Fulfillment locations require review');
   // CJ inventory stays at its app-managed location. Copying a merchant's physical
   // location makes Shopify mark stocked CJ products sold out for that route.
-  const fulfillmentLocationId=cjLocation(existing);
+  const fulfillmentLocationId=cjLocation((await admin(`query{shop{fulfillmentServices{handle serviceName location{id}}}}`)).shop?.fulfillmentServices);
   if(owned&&groups.length!==1)throw Error('CJ fulfillment groups require review');
   if(owned){
     const group=groups[0],ids=group.locationGroup.locations.nodes.map(l=>l.id);
