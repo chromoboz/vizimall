@@ -23,6 +23,7 @@
     [/^(\S+) remaining · selected option$/,'{count} remaining · selected option',['count']],
     [/^(\S+) remaining in (.+)$/,'{count} remaining in {place}',['count','place']],
     [/^(\d+) delivery countries confirmed\. Checking more…$/,'{count} delivery countries confirmed. Checking more…',['count']],
+    [/^(1) products?( loaded)?$/,'{count} product',['count']],
     [/^(\d+) products?( loaded)?$/,'{count} products',['count']],
     [/^Photo (\d+) of (\d+) · Click to enlarge$/,'Photo {index} of {count} · Click to enlarge',['index','count']],
     [/^Welcome, (.+)\.$/,'Welcome, {person}',['person']],

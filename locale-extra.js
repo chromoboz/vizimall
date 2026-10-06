@@ -99,6 +99,14 @@ Size|Größe|Μέγεθος|Taille|Taglia|Talla|Maat|Rozmiar|Tamanho
 Model|Modell|Μοντέλο|Modèle|Modello|Modelo|Model|Model|Modelo
 Standard|Standard|Τυπικό|Standard|Standard|Estándar|Standaard|Standard|Padrão
 Destination check unavailable|Lieferländerprüfung nicht verfügbar|Έλεγχος προορισμών μη διαθέσιμος|Vérification des destinations indisponible|Verifica destinazioni non disponibile|Comprobación de destinos no disponible|Bestemmingscontrole niet beschikbaar|Sprawdzanie kierunków niedostępne|Verificação de destinos indisponível
+{count} product|{count} Produkt|{count} προϊόν|{count} produit|{count} prodotto|{count} producto|{count} product|{count} produkt|{count} produto
+Product page {index}|Produktseite {index}|Σελίδα προϊόντων {index}|Page de produits {index}|Pagina prodotti {index}|Página de productos {index}|Productpagina {index}|Strona produktów {index}|Página de produtos {index}
+View {product}|{product} ansehen|Προβολή {product}|Voir {product}|Visualizza {product}|Ver {product}|Bekijk {product}|Zobacz {product}|Ver {product}
+Enlarge photo of {product}|Foto von {product} vergrößern|Μεγέθυνση φωτογραφίας {product}|Agrandir la photo de {product}|Ingrandisci foto di {product}|Ampliar foto de {product}|Foto van {product} vergroten|Powiększ zdjęcie {product}|Ampliar fotografia de {product}
+Show photo {index} of {count}|Foto {index} von {count} anzeigen|Εμφάνιση φωτογραφίας {index} από {count}|Afficher la photo {index} sur {count}|Mostra foto {index} di {count}|Mostrar foto {index} de {count}|Foto {index} van {count} tonen|Pokaż zdjęcie {index} z {count}|Mostrar fotografia {index} de {count}
+Photos of {product}|Fotos von {product}|Φωτογραφίες {product}|Photos de {product}|Foto di {product}|Fotos de {product}|Foto’s van {product}|Zdjęcia {product}|Fotografias de {product}
+Choose {option}: {value}|{option} wählen: {value}|Επιλέξτε {option}: {value}|Choisir {option} : {value}|Scegli {option}: {value}|Elegir {option}: {value}|Kies {option}: {value}|Wybierz {option}: {value}|Escolher {option}: {value}
+Quantity for {product}|Menge für {product}|Ποσότητα για {product}|Quantité pour {product}|Quantità per {product}|Cantidad de {product}|Aantal voor {product}|Ilość dla {product}|Quantidade de {product}
 `;
   const codes=Object.keys(root.VizimallLocaleData.languages);
   for(const line of rows.trim().split('\n')){const[key,...values]=line.split('|');if(values.length!==8)throw Error('Invalid locale row: '+key);root.VizimallLocaleData.messages[key]=Object.fromEntries(codes.map((code,i)=>[code,values[i]]));}

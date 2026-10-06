@@ -282,7 +282,7 @@
         info.append(element('h3', 'supplier-content', line.title), element('p', 'supplier-content', line.variantTitle === 'Default Title' ? '' : line.variantTitle), element('p', '', money(line.price)));
         const quantity = element('input');
         quantity.type = 'number'; quantity.min = '1'; quantity.max = '99'; quantity.value = String(line.quantity);
-        quantity.setAttribute('aria-label', `Quantity for ${line.title}`);
+        quantity.setAttribute('aria-label', tr('Quantity for {product}',{product:line.title}));
         quantity.addEventListener('input', () => {
           const next = Number(quantity.value);
           if (Number.isInteger(next) && next >= 1 && next <= 99) { line.quantity = next; save(); updateTotals(); }
@@ -317,7 +317,7 @@
       const photos = [...detail.images, detail.featuredImage, ...detail.variants.map(v => v.image)]
         .filter((photo, index, all) => /^https:\/\//i.test(photo?.url || '') && all.findIndex(p => p?.url === photo.url) === index);
       const gallery = element('section', 'product-gallery');
-      gallery.setAttribute('aria-label', `${detail.title} photos`);
+      gallery.setAttribute('aria-label', tr('Photos of {product}',{product:detail.title}));
       const mainImage = image(photos[0], detail.title, 'detail');
       mainImage.loading = 'eager';
       const counter = element('p', 'gallery-counter');
@@ -332,7 +332,7 @@
         viewer.append(enlarged);
         modal.addEventListener('close', () => viewer.close(), { once: true });
       }, 'gallery-enlarge');
-      enlarge.setAttribute('aria-label', `Enlarge photo of ${detail.title}`);
+      enlarge.setAttribute('aria-label', tr('Enlarge photo of {product}',{product:detail.title}));
       mainImage.draggable = false;
       enlarge.append(mainImage);
       const stage = element('div', 'gallery-stage');
@@ -358,7 +358,7 @@
       thumbnails.setAttribute('aria-label', 'Choose a product photo');
       const photoButtons = photos.map((photo, index) => {
         const thumb = button('', () => choosePhoto(index), 'gallery-thumbnail');
-        thumb.setAttribute('aria-label', `Show photo ${index + 1} of ${photos.length}`);
+        thumb.setAttribute('aria-label', tr('Show photo {index} of {count}',{index:index+1,count:photos.length}));
         thumb.append(image(photo, `${detail.title} · Photo ${index + 1}`, 'thumb'));
         thumbnails.append(thumb);
         return thumb;
@@ -411,7 +411,7 @@
               || eligible.find(v => v.availableForSale);
             if (next) { select.value = next.id; showVariantPhoto(); }
           }, 'option-choice');
-          choice.setAttribute('aria-label', `Choose ${name}: ${value}`);
+          choice.setAttribute('aria-label', tr('Choose {option}: {value}',{option:tr(name),value}));
           choice.disabled = !eligible.some(v => v.availableForSale);
           if (/colou?r/i.test(name)) {
             const source = eligible.find(v => v.image)?.image;
@@ -499,7 +499,7 @@
   function productCard(item) {
     const card = element('article', 'product-card');
     const open = button('', () => showProduct(item), 'product-open');
-    open.setAttribute('aria-label', 'View ' + item.title);
+    open.setAttribute('aria-label', tr('View {product}',{product:item.title}));
     open.append(image(item.featuredImage, item.title), element('h3', 'supplier-content', item.title));
     const favourite = button('♡ Save favourite', async () => {
       favourite.disabled = true;
@@ -627,7 +627,7 @@
       if (result.pageInfo.hasNextPage && (!next || next === after)) throw new Error('Unable to load the next page. Please try again.');
       cursor = next; complete = !result.pageInfo.hasNextPage;
       const page = { after, node: element('div', 'product-page'), items: null, near: true, height: 0, width: 0 };
-      page.node.setAttribute('aria-label', 'Product page ' + (pages.length + 1));
+      page.node.setAttribute('aria-label', tr('Product page {index}',{index:pages.length+1}));
       pageByNode.set(page.node, page); pages.push(page); grid.append(page.node);
       mount(page, result.products);
       total += page.items.length;
