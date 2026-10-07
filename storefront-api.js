@@ -4,6 +4,8 @@
   const validDestination = code => root.VizimallDestinations.valid(code);
   const countries = Object.freeze({ DE: 'germany', FR: 'france', NL: 'netherlands', PL: 'poland', ES: 'spain', PT: 'portugal', IT: 'italy', GR: 'greece' });
   const stores = Object.freeze(['tech', 'home', 'pets', 'beauty', 'fashion', 'kids', 'auto']);
+  const languages = Object.freeze({ DE:'DE', GR:'EL', FR:'FR', IT:'IT', ES:'ES', NL:'NL', PL:'PL', PT:'PT_PT' });
+  const productStore = (product, country) => stores.find(store => matches(product, country, store));
   function routing(country, store) {
     if (!Object.hasOwn(countries, country) || !stores.includes(store)) throw new Error('Please select a country and store from the mall.');
     return { countryTag: `country-${countries[country]}`, storeTag: `store-${store}` };
@@ -45,35 +47,35 @@
     const productFields = 'id title description tags availableForSale featuredImage { url altText } priceRange { minVariantPrice { amount currencyCode } }';
     const variantFields = 'id title selectedOptions { name value } availableForSale quantityAvailable currentlyNotInStock price { amount currencyCode } image { url altText }';
     async function products(country, store, after = null, options = {}) {
-      const { countryTag, storeTag } = routing(country, store);
+      const { countryTag, storeTag } = routing(country, store === 'all' ? stores[0] : store);
       const shippingCountry = options.shippingCountry || country;
       if (!validDestination(shippingCountry)) throw new Error('Choose a supported delivery country.');
       // Collection tags identify the supplier's storefront, not destinations.
-      const terms = [countryTag, storeTag].map(tag => 'tag:' + tag);
+      const terms = ['tag:' + countryTag, store === 'all' ? '(' + stores.map(value => 'tag:store-' + value).join(' OR ') + ')' : 'tag:' + storeTag];
       const quote = value => '"' + value.replace(/[\\"():*]/g, character => '\\' + character) + '"';
       for (const word of String(options.search || '').trim().split(/\s+/).filter(Boolean)) terms.push('title:' + quote(word) + '*');
       if (options.inStock) terms.push('available_for_sale:true');
       const sortKey = ['low', 'high'].includes(options.sort) ? 'PRICE' : 'TITLE';
       const reverse = options.sort === 'high';
       const listFields = productFields.replace(' description ', ' ');
-      const data = await request(`query Products($country: CountryCode!, $filter: String!, $after: String) @inContext(country: $country) {
+      const data = await request(`query Products($country: CountryCode!, $language: LanguageCode!, $filter: String!, $after: String) @inContext(country: $country, language: $language) {
         products(first: 24, after: $after, query: $filter, sortKey: ${sortKey}, reverse: ${reverse}) {
           nodes { ${listFields} } pageInfo { hasNextPage endCursor }
         }
-      }`, { country: shippingCountry, filter: terms.join(' AND '), after }, options.signal);
+      }`, { country: shippingCountry, language: languages[country], filter: terms.join(' AND '), after }, options.signal);
       // Also check exact tags locally: Shopify search indexing can lag behind edits.
-      return { products: data.products.nodes.filter(p => matches(p, country, store)), pageInfo: data.products.pageInfo };
+      return { products: data.products.nodes.filter(p => store === 'all' ? productStore(p, country) : matches(p, country, store)), pageInfo: data.products.pageInfo };
     }
     async function product(country, store, id, signal, shippingCountry = country) {
       routing(country, store);
       if (!validDestination(shippingCountry)) throw new Error('Choose a supported delivery country.');
       let after = null, item, variants = [];
       do {
-        const data = await request(`query Product($country: CountryCode!, $id: ID!, $after: String) @inContext(country: $country) {
+        const data = await request(`query Product($country: CountryCode!, $language: LanguageCode!, $id: ID!, $after: String) @inContext(country: $country, language: $language) {
           product(id: $id) { ${productFields} descriptionHtml delivery:metafield(namespace:"vizimall",key:"delivery_routes"){type value} images(first: 250) { nodes { url altText } } variants(first: 100, after: $after) {
             nodes { ${variantFields} } pageInfo { hasNextPage endCursor }
           } }
-        }`, { country: shippingCountry, id, after }, signal);
+        }`, { country: shippingCountry, language: languages[country], id, after }, signal);
         item = data.product;
         if (!item || !matches(item, country, store)) throw new Error('This product is no longer available in this store.');
         variants.push(...item.variants.nodes);
@@ -117,5 +119,5 @@
     }
     return Object.freeze({ products, product, checkout });
   }
-  root.VizimallStorefront = Object.freeze({ countries, stores, routing, matches, createClient });
+  root.VizimallStorefront = Object.freeze({ countries, stores, routing, matches, productStore, createClient });
 })(typeof window === 'undefined' ? globalThis : window);

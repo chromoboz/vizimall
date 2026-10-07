@@ -5,7 +5,7 @@ const vm=require('node:vm');
 function boot(search,extra={}){
   const root={location:{search,href:'https://vizimall.com/tech.html'+search,origin:'https://vizimall.com'},...extra};
   const context={window:root,URL,URLSearchParams,Intl,Object,MutationObserver:extra.MutationObserver};
-  for(const path of ['locale-data.js','locale-extra.js','locale.js'])vm.runInNewContext(readFileSync(path,'utf8'),context);
+  for(const path of ['locale-data.js','locale-extra.js','locale-shopping.js','locale.js'])vm.runInNewContext(readFileSync(path,'utf8'),context);
   return root;
 }
 test('Every storefront selects its language independently of delivery and entry preference',()=>{

@@ -48,7 +48,7 @@ test('Rejects secret tokens and untrusted endpoints', () => {
 });
 test('Server filtering, country context, pagination and stale-index protection', async () => {
   const client = mock(({ variables }) => {
-    assert.deepEqual(variables, { country: 'DE', filter: 'tag:country-germany AND tag:store-tech', after: 'page-one' });
+    assert.deepEqual(variables, { country: 'DE', language: 'DE', filter: 'tag:country-germany AND tag:store-tech', after: 'page-one' });
     return { data: { products: { nodes: [item, { ...item, tags: ['country-france','store-tech'] }], pageInfo: { hasNextPage: true, endCursor: 'page-two' } } } };
   });
   const result = await client.products('DE','tech','page-one');

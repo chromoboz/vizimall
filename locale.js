@@ -51,7 +51,7 @@
     for(const attr of ['aria-label','title','placeholder','alt','data-store'])if(node.hasAttribute(attr)){const value=node.getAttribute(attr),next=text(value);if(next!==value)node.setAttribute(attr,next);}
     if(node.matches('a[href]')){
       const url=new URL(node.getAttribute('href'),root.location.href);
-      if(country&&url.origin===root.location.origin&&/\/(mall|account|help|privacy|newsletter|tech|home|pets|beauty|fashion|kids|auto|lifestyle|travel)(\.html)?\/?$/.test(url.pathname)&&!url.searchParams.has('country')){url.searchParams.set('country',country);node.href=url.href;}
+      if(country&&url.origin===root.location.origin&&/\/(mall|search|account|help|privacy|newsletter|tech|home|pets|beauty|fashion|kids|auto|lifestyle|travel)(\.html)?\/?$/.test(url.pathname)&&!url.searchParams.has('country')){url.searchParams.set('country',country);node.href=url.href;}
       else if(!country&&url.origin===root.location.origin&&/\/(account|help|privacy|newsletter)(\.html)?\/?$/.test(url.pathname)&&!url.searchParams.has('country')&&!url.searchParams.has('lang')){url.searchParams.set('lang',language);node.href=url.href;}
     }
     for(const child of node.childNodes)translate(child);

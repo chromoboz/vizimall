@@ -38,7 +38,7 @@
   function backLink(){
     const url=new URL(location.href),country=url.searchParams.get('country');const allowed=['DE','FR','NL','PL','ES','PT','IT','GR'];
     let destination=allowed.includes(country)?`mall.html?country=${country}`:'index.html';
-    try{const previous=new URL(url.searchParams.get('return')||'',location.origin);if(previous.origin===location.origin&&/^\/(index|mall|tech|home|pets|beauty|fashion|kids|auto)(\.html)?$/.test(previous.pathname)){const safe=new URL(previous.pathname,location.origin);const region=previous.searchParams.get('country');if(allowed.includes(region))safe.searchParams.set('country',region);destination=safe.pathname+safe.search;}}catch{}
+    try{const previous=new URL(url.searchParams.get('return')||'',location.origin);if(previous.origin===location.origin&&/^\/(index|mall|search|tech|home|pets|beauty|fashion|kids|auto)(\.html)?$/.test(previous.pathname)){const safe=new URL(previous.pathname,location.origin);const region=previous.searchParams.get('country');if(allowed.includes(region))safe.searchParams.set('country',region);destination=safe.pathname+safe.search;}}catch{}
     const back=document.querySelector('[data-profile-back]');if(back)back.href=destination;
   }
   for(const link of document.querySelectorAll('.account-link')) {

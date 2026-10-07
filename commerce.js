@@ -50,7 +50,7 @@
     setImage(node, source, title, kind);
     return node;
   }
-  function productInformation(detail) {
+  function productInformation(detail, store) {
     const details = element('section', 'product-information');
     details.append(element('h3', '', 'Product details'));
     const delivery = element('section', 'delivery-information');
@@ -58,7 +58,7 @@
     delivery.append(element('h3', '', 'Delivery'));
     const description = element('div', 'product-description');
     const parsed = new DOMParser().parseFromString(detail.descriptionHtml || '', 'text/html');
-    const allowed = new Set(['P', 'UL', 'OL', 'LI', 'STRONG', 'B', 'EM', 'BR']);
+    const allowed = new Set(['P', 'UL', 'OL', 'LI', 'STRONG', 'B', 'EM', 'BR', 'TABLE', 'THEAD', 'TBODY', 'TR', 'TH', 'TD', 'H3', 'H4']);
     function clean(node, target) {
       if (node.nodeType === Node.TEXT_NODE) { target.append(document.createTextNode(node.textContent)); return; }
       if (node.nodeType !== Node.ELEMENT_NODE || ['SCRIPT', 'STYLE', 'IFRAME', 'OBJECT'].includes(node.tagName)) return;
@@ -115,7 +115,7 @@
           if(!Array.isArray(result.destinations)){destinationStatus.textContent='Delivery countries could not be confirmed for this option.';return;}
           discoveryExpiresAt=result.expiresAt||Date.now()+900000;
           setDestinations([...destinationCodes,...result.destinations]);
-          destinationStatus.textContent=result.status==='complete'?(destinationCodes.size?'Only destinations confirmed by CJ are listed.'+(result.unverified?' Some country checks could not be completed.':''):'CJ has no confirmed delivery destinations for this option.'):destinationCodes.size+' delivery countries confirmed. Checking more…';
+          destinationStatus.textContent=result.status==='complete'?(destinationCodes.size?'Only confirmed delivery countries are listed.'+(result.unverified?' Some country checks could not be completed.':''):'No delivery countries have been confirmed for this option.'):destinationCodes.size+' delivery countries confirmed. Checking more…';
           if(result.status!=='complete')discoveryTimer=setTimeout(next,Math.max(8000,result.retryAfterMs||8000));
         }catch(error){if(!controller.signal.aborted){destinationStatus.textContent='Only confirmed countries are shown. Checking additional destinations…';discoveryTimer=setTimeout(next,15000);}}
       }
@@ -154,9 +154,9 @@
         ['Shipping method', route.method || 'Confirmed at checkout'],
         ['Processing time', route.processing || 'Not provided'],
         ['Estimated delivery', route.estimate || 'Not provided for this destination'],
-        ['Shipping cost', route.cost || 'Confirmed at checkout']
+        ['Shipping cost', 'Confirmed at checkout']
       ]) { table.append(element('dt', '', label), element('dd', '', value)); }
-      note.textContent = route.note;
+      note.textContent = tr('Delivery estimates are not guaranteed. Preparation and transport are separate.');
       if (!variantId || !Number.isInteger(Number(quantity.value)) || Number(quantity.value)<1 || Number(quantity.value)>99) return;
       quoteController = new AbortController();
       const query = new URLSearchParams({ variant:variantId, shipping:shippingCountry, country, store, quantity:quantity.value });
@@ -166,7 +166,7 @@
         if(quote.status!=='available')delivery.dispatchEvent(new CustomEvent('vizimall-shipping-quote',{detail:{variantId,quote},bubbles:true}));
         if (quote.status === 'not_connected' || quote.status === 'not_mapped') return;
         if (quote.status === 'unavailable') { if(quote.reason==='no_shipping_method'){destinationCodes.delete(shippingCountry);setDestinations([...destinationCodes]);} table.replaceChildren(element('dt','','Availability'),element('dd','','No shipping option available for this quantity and destination.')); note.textContent='Choose another destination or quantity.'; return; }
-        if (quote.status !== 'available') { note.textContent='Live shipping information is temporarily unavailable. '+route.note; return; }
+        if (quote.status !== 'available') { note.textContent=tr('Live shipping information is temporarily unavailable.'); return; }
         destinationCodes.add(shippingCountry);setDestinations([...destinationCodes]);
         originControl.replaceChildren();
         for (const code of quote.origins) { const option=element('option','',window.VizimallDestinations.name(code)); option.value=code; originControl.append(option); }
@@ -180,15 +180,14 @@
         function showQuote() {
           const method=quote.methods[Number(methodControl.value)]; if(!method)return;
           table.replaceChildren();
-          const rows=[['Processing time',quote.processingHours?'Ships within '+quote.processingHours+' hours':route.processing||'Not provided by supplier'],['Estimated transport',method.transport+' days; preparation is additional'],['Warehouse stock',Number.isSafeInteger(quote.stockQuantity)?quote.stockQuantity.toLocaleString(document.documentElement.lang)+' remaining in '+window.VizimallDestinations.name(quote.from):'Not provided'],['CJ shipping estimate for this quantity',money(method.supplierCost)]];
+          const rows=[['Processing time',quote.processingHours?'Ships within '+quote.processingHours+' hours':route.processing||'Not provided by supplier'],['Estimated transport',method.transport+' days; preparation is additional'],['Warehouse stock',Number.isSafeInteger(quote.stockQuantity)?quote.stockQuantity.toLocaleString(document.documentElement.lang)+' remaining in '+window.VizimallDestinations.name(quote.from):'Not provided']];
           if(quote.pricing)rows.push(['Price including standard shipping per item',money(quote.pricing.unitPrice)],[tr('Total for {count} item(s)',{count:quote.quantity}),money(quote.pricing.lineTotal)]);
           for(const [label,value] of rows)table.append(element('dt','',label),element('dd','',value));
-          const checkedTime=new Date(quote.checkedAt).toLocaleTimeString(document.documentElement.lang);
-          note.textContent=quote.pricing?tr(quote.pricing.checkoutReady?'Standard shipping is included per item.':'Shipping is available. The checkout price for this destination is being prepared; purchasing is temporarily unavailable.')+' '+tr('CJ checked {time}. Preparation and transport are separate estimates.',{time:checkedTime}):tr('CJ estimate for {count} item(s), checked {time}. Final checkout charge is not yet verified.',{count:quote.quantity,time:checkedTime});
+          note.textContent=tr(quote.pricing?.checkoutReady?'Standard shipping is included per item.':'The final price is being confirmed. Please wait before adding to your bag.')+' '+tr('Delivery estimates are not guaranteed. Preparation and transport are separate.');
           delivery.dispatchEvent(new CustomEvent('vizimall-shipping-quote',{detail:{variantId,quote},bubbles:true}));
         }
         methodControl.onchange=showQuote;showQuote();
-      }).catch(error => { if(requestId===requestNumber && error.name!=='AbortError'){note.textContent='Live shipping information is temporarily unavailable. '+route.note;delivery.dispatchEvent(new CustomEvent('vizimall-shipping-quote',{detail:{variantId,quote:{status:'temporarily_unavailable'}},bubbles:true}));} });
+      }).catch(error => { if(requestId===requestNumber && error.name!=='AbortError'){note.textContent=tr('Live shipping information is temporarily unavailable.');delivery.dispatchEvent(new CustomEvent('vizimall-shipping-quote',{detail:{variantId,quote:{status:'temporarily_unavailable'}},bubbles:true}));} });
     }
     const note = element('p', 'delivery-source'); delivery.append(note);
     quantity.addEventListener('change',()=>renderDelivery(lastVariant,originControl.value||undefined));
@@ -332,6 +331,8 @@
     render();
   }
   async function showProduct(item) {
+      const store = api.productStore(item, country) || document.body.dataset.category;
+      if (!api.stores.includes(store)) return;
       const modal = dialog(item.title);
       modal.querySelector('h2').setAttribute('data-vizi-content','external');
     const content = element('div', 'product-detail');
@@ -343,6 +344,8 @@
       modal.addEventListener('close', () => controller.abort(), { once: true });
       const detail = await client.product(country, store, item.id, controller.signal, shippingCountry);
       if (!modal.isConnected) return;
+      window.VizimallProductCopy?.apply(detail, country);
+      modal.querySelector('h2').textContent = detail.title;
       const photos = [...detail.images, detail.featuredImage, ...detail.variants.map(v => v.image)]
         .filter((photo, index, all) => /^https:\/\//i.test(photo?.url || '') && all.findIndex(p => p?.url === photo.url) === index);
       const gallery = element('section', 'product-gallery');
@@ -409,8 +412,12 @@
       const selectedOption = element('p', 'selected-option');
       const stockStatus = element('p', 'product-stock');
       stockStatus.setAttribute('aria-live', 'polite');
-      const information = productInformation(detail);
+      const information = productInformation(detail, store);
       copy.append(element('p', 'detail-eyebrow', window.VizimallLocale?.t('The {place} collection',{place:window.VizimallDestinations.name(country)})||`${market.name} collection`), price);
+      if (detail.summary) copy.append(element('p', 'product-summary supplier-content', detail.summary));
+      const help = element('a', 'product-help', tr('Delivery, orders and support'));
+      help.href = 'help.html?country=' + country + '&shipping=' + shippingCountry;
+      copy.append(help);
       const selectLabel = element('label', '', 'Choose an option');
       const select = element('select', 'variant-select');
       const selectId = `variant-${detail.id.split('/').pop()}`;
@@ -500,10 +507,11 @@
     } catch (error) { status.textContent = error.message; }
   }
   const panel = document.querySelector('.product-panel');
-  if (!panel || !api.stores.includes(store)) return;
+  if (!panel || !(api.stores.includes(store) || store === 'all')) return;
   const grid = panel.querySelector('.product-grid');
   const tools = element('div', 'store-tools');
-  const search = element('input'); search.type = 'search'; search.placeholder = 'Search this store'; search.setAttribute('aria-label', 'Search this store');
+  const search = element('input'); search.type = 'search'; search.placeholder = tr(store === 'all' ? 'Search all stores' : 'Search this store'); search.setAttribute('aria-label', search.placeholder);
+  search.value = new URLSearchParams(location.search).get('q') || '';
   const sorting = element('select'); sorting.setAttribute('aria-label', 'Sort products');
   for (const [value, text] of [['name','Name A–Z'], ['low','Price: low to high'], ['high','Price: high to low']]) { const option = element('option', '', text); option.value = value; sorting.append(option); }
   const stock = element('label', '', 'In stock only '); const stockInput = element('input'); stockInput.type = 'checkbox'; stock.append(stockInput);
@@ -520,13 +528,15 @@
   // and measured spacer, so scrolling back restores them without layout collapse.
   grid.classList.add('paged-grid');
   let cursor = null, loading = false, complete = false, total = 0;
-  let generation = 0, filterTimer, options = { shippingCountry }, pages = [];
+  let generation = 0, filterTimer, options = { shippingCountry, search: window.VizimallProductCopy?.search(search.value) || search.value }, pages = [];
   const requests = new Set();
   const pageByNode = new WeakMap();
   function updateCount() {
     count.textContent = total + ' product' + (total === 1 ? '' : 's') + (complete ? '' : ' loaded');
   }
   function productCard(item) {
+    window.VizimallProductCopy?.apply(item, country);
+    const itemStore = api.productStore(item, country) || store;
     const card = element('article', 'product-card');
     const open = button('', () => showProduct(item), 'product-open');
     open.setAttribute('aria-label', tr('View {product}',{product:item.title}));
@@ -534,8 +544,8 @@
     const favourite = button('♡ Save favourite', async () => {
       favourite.disabled = true;
       try {
-        const response = await fetch('/api/favourites', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'add', productId: item.id, title: item.title, country, store }) });
-        if (response.status === 401) { location.href = 'account.html#favourites'; return; }
+        const response = await fetch('/api/favourites', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'add', productId: item.id, title: item.title, country, store: itemStore }) });
+        if (response.status === 401) { location.href = 'account.html?country=' + country + '#favourites'; return; }
         if (!response.ok) throw new Error('Could not save. Please try again.');
         favourite.textContent = '♥ Saved';
       } catch (error) { message.textContent = error.message; } finally { favourite.disabled = false; }
@@ -544,6 +554,11 @@
     const rating = element('p', 'product-rating', 'Loading reviews…');
     rating.setAttribute('aria-live', 'polite');
     card.append(open, rating, element('p', 'product-price', 'From ' + money(item.priceRange.minVariantPrice)), button(item.availableForSale ? 'Choose options' : 'View product · Sold out', () => showProduct(item), 'commerce-secondary'), favourite);
+    if (store === 'all') {
+      const category = element('a', 'product-category', tr(window.VizimallNavigation.labels[itemStore]));
+      category.href = itemStore + '.html?country=' + country + '&shipping=' + shippingCountry;
+      card.prepend(category);
+    }
     return card;
   }
   function priceMatches(item) {
@@ -687,7 +702,8 @@
     filterTimer = setTimeout(() => {
       pages.forEach(page => { pageObserver?.unobserve(page.node); sizeObserver?.unobserve(page.node); page.items = null; });
       pages = []; grid.replaceChildren(); cursor = null; complete = false; total = 0;
-      options = { shippingCountry, search: search.value, sort: sorting.value, inStock: stockInput.checked, min: minimum.value, max: maximum.value };
+      options = { shippingCountry, search: window.VizimallProductCopy?.search(search.value) || search.value, sort: sorting.value, inStock: stockInput.checked, min: minimum.value, max: maximum.value };
+      if (store === 'all') { const url = new URL(location.href); search.value ? url.searchParams.set('q', search.value) : url.searchParams.delete('q'); history.replaceState(null, '', url); }
       more.hidden = true; retry.hidden = true; loading = false;
       load();
     }, 250);
