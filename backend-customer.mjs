@@ -5,6 +5,7 @@ import { publicReview, coinPolicy } from './backend-rules.mjs';
 import { createRequire } from 'node:module';
 import { publicAudience, newsletterStatus, newsletterRecord, newsletterReport, measurementReport } from './backend-audience.mjs';
 import { profileData, profileKey, saveProfileImage, nameInput } from './backend-profile.mjs';
+import { customerCart } from './backend-cart.mjs';
 const require = createRequire(import.meta.url);
 const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
 const json = (data, status = 200) => Response.json(data, { status, headers });
@@ -115,6 +116,11 @@ return async function handler(req, context = {}) {
       return new Response(Buffer.from(review.photos[index], 'base64'), { headers: { ...headers, 'Content-Type': 'image/jpeg' } });
     }
     if (!signed) return json({ error: 'Please sign in', signedIn: false, nativeAccount }, 401);
+    if(action==='cart'){
+      const customer=await readProfile(signed.token);
+      if(req.method==='POST')await limit(db,`cart:${customer.id}`,240,60000);
+      return json(await customerCart(db,customer,url.searchParams.get('shipping'),req.method==='POST'?await body(req,100000):undefined));
+    }
     if (['profile','profile-photo'].includes(action)) {
       const customer=await readProfile(signed.token);
       if(action==='profile-photo'&&req.method==='GET') {

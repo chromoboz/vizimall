@@ -7,7 +7,7 @@
   const store = document.body.dataset.category;
   const market = window.VIZIMALL_MARKETS[country];
   const destination = {name:window.VizimallDestinations.name(shippingCountry)};
-  let storageKey = `vizimall-cart-v1:${window.VIZIMALL_SHOPIFY.domain}:${shippingCountry}`;
+  let storageKey = `vizimall-cart-v2:guest:${window.VIZIMALL_SHOPIFY.domain}:${shippingCountry}`;
   let client, connectionError;
   try { client = api.createClient(window.VIZIMALL_SHOPIFY); } catch (error) { connectionError = error; }
   const tr = (key,values) => window.VizimallLocale?.t(key,values)||key;
@@ -121,12 +121,14 @@
       }
       discoveryTimer=setTimeout(next,0);
     }
-    selector.addEventListener('change', () => {
+    selector.addEventListener('change', async () => {
+      await cartReady.catch(()=>{}); await cartWrites.catch(()=>{});
       shippingCountry = window.VizimallShipping.remember(selector.value);
       destination.name = window.VizimallDestinations.name(shippingCountry);
-      storageKey = `vizimall-cart-v1:${window.VIZIMALL_SHOPIFY.domain}:${shippingCountry}`;
-      cart = readCart();
-      save();
+      storageKey = `vizimall-cart-v2:guest:${window.VIZIMALL_SHOPIFY.domain}:${shippingCountry}`;
+      cartInitialized=false;
+      cartReady = loadCart();
+      cartReady.catch(()=>{});
       renderDelivery(lastVariant, originControl.value || undefined);
     });
     shipLabel.append(selector); delivery.append(shipLabel,destinationStatus);
@@ -204,16 +206,35 @@
       && /^[A-Z]{3}$/.test(line.price?.currencyCode);
   }
   function readCart() {
-    try {
-      const saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
-      if (Array.isArray(saved)) return saved.filter(validLine).slice(0, 50);
-    } catch {}
-    return [];
+    return window.ViziCartStorage.readGuest(localStorage,storageKey,validLine);
   }
-  let cart = readCart();
+  let cart = [], cartOwner=null, cartRevision=0, restoredCart=false, cartInitialized=false, cartWrites=Promise.resolve();
+  async function cartRequest(input){
+    const response=await fetch('/api/cart?shipping='+encodeURIComponent(shippingCountry),{credentials:'same-origin',cache:'no-store',...(input?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)}:{})});
+    if(response.status===401&&!input)return {signedIn:false};
+    if(!response.ok)throw Error(tr('Your bag could not be saved. Please reload and try again.'));
+    return response.json();
+  }
+  async function loadCart(){
+    const previousOwner=cartOwner;
+    const previousRestored=restoredCart,previousLines=JSON.stringify(cart);
+    cart=[];cartOwner=null;cartButton.disabled=true;renderBag(0);
+    try{
+      const saved=await cartRequest();
+      cartOwner=saved.signedIn?saved.owner:null;cartRevision=saved.revision||0;
+      cart=cartOwner?saved.lines.filter(validLine):readCart();
+      if(previousOwner!==cartOwner||previousLines!==JSON.stringify(cart))for(const modal of document.querySelectorAll('.cart-dialog'))modal.close();
+      restoredCart=cart.length>0&&(!cartInitialized||previousOwner!==cartOwner||previousRestored);cartInitialized=true;renderBag(cart.reduce((n,l)=>n+l.quantity,0));
+    }finally{cartButton.disabled=false;}
+  }
   function save() {
-    try { localStorage.setItem(storageKey, JSON.stringify(cart)); } catch {}
     renderBag(cart.reduce((n, l) => n + l.quantity, 0));
+    if(!cart.length)restoredCart=false;
+    if(!cartOwner){window.ViziCartStorage.saveGuest(localStorage,storageKey,cart);return Promise.resolve();}
+    const lines=JSON.parse(JSON.stringify(cart)),owner=cartOwner;
+    // Serialize writes and stop after a conflict; never overwrite another tab's newer cart.
+    cartWrites=cartWrites.then(async()=>{const saved=await cartRequest({lines,owner,revision:cartRevision});cartRevision=saved.revision;});
+    return cartWrites;
   }
   function dialog(title) {
     const node = element('dialog', 'commerce-dialog');
@@ -234,11 +255,17 @@
     const badge = element('span','bag-count',String(count)); badge.hidden = count === 0; badge.setAttribute('aria-hidden','true');
     cartButton.replaceChildren(icon,badge);
   }
-  const cartButton = button('Bag (0)', showCart, 'cart-toggle');
+  const cartButton = button('Bag (0)', () => showCart().catch(()=>{const modal=dialog('Your bag');modal.append(element('p','commerce-status',tr('Your bag could not be saved. Please reload and try again.')));}), 'cart-toggle');
   document.body.append(cartButton);
-  save();
-  function showCart() {
+  renderBag(0);
+  let cartReady=loadCart();cartReady.catch(()=>{});
+  window.addEventListener('pageshow',event=>{if(event.persisted){cartWrites=Promise.resolve();cartReady=loadCart();cartReady.catch(()=>{});}});
+  window.addEventListener('focus',()=>{cartReady=cartReady.catch(()=>{}).then(()=>cartWrites.catch(()=>{})).then(loadCart);cartReady.catch(()=>{});});
+  async function showCart() {
+    await cartReady.catch(()=>{});await cartWrites.catch(()=>{});
+    cartWrites=Promise.resolve();await loadCart();
     const modal = dialog(`Your bag · Shipping to ${destination.name}`);
+    modal.classList.add('cart-dialog');
     const contents = element('div', 'cart-contents');
     const status = element('p', 'commerce-status');
     status.setAttribute('role', 'status');
@@ -263,7 +290,7 @@
           if(!quote.pricing?.checkoutReady)throw new Error('The shipping-included checkout price for this destination is not ready. Please try again later.');
           line.price=quote.pricing.unitPrice;
         }
-        save();updateTotals();
+        await save();updateTotals();
         const url = await client.checkout(shippingCountry, cart.map(line => ({ ...line })), country);
         // Keep the bag when a buyer returns without completing payment.
         location.assign(url);
@@ -275,6 +302,8 @@
     function render() {
       contents.replaceChildren();
       totals.clear();
+      if(cart.length&&restoredCart)contents.append(element('p','checkout-note',tr('Saved from an earlier visit.')));
+      if(cart.length)contents.append(button('Clear bag',()=>{cart=[];save().catch(error=>{status.textContent=error.message;});render();},'commerce-secondary'));
       if (!cart.length) contents.append(element('p', '', 'Your bag is empty. Explore the stores to find something you love.'));
       for (const line of cart) {
         const row = element('div', 'cart-line');
@@ -285,10 +314,10 @@
         quantity.setAttribute('aria-label', tr('Quantity for {product}',{product:line.title}));
         quantity.addEventListener('input', () => {
           const next = Number(quantity.value);
-          if (Number.isInteger(next) && next >= 1 && next <= 99) { line.quantity = next; save(); updateTotals(); }
+          if (Number.isInteger(next) && next >= 1 && next <= 99) { line.quantity = next; save().catch(error=>{status.textContent=error.message;}); updateTotals(); }
         });
         quantity.addEventListener('change', () => { quantity.value = String(line.quantity); });
-        row.append(info, quantity, button('Remove', () => { cart = cart.filter(l => l !== line); save(); render(); }, 'commerce-close'));
+        row.append(info, quantity, button('Remove', () => { cart = cart.filter(l => l !== line); save().catch(error=>{status.textContent=error.message;}); render(); }, 'commerce-close'));
         contents.append(row);
       }
       const currencies = [...new Set(cart.map(l => l.price.currencyCode))];
@@ -436,7 +465,8 @@
         if (typeof add !== 'undefined') { add.disabled = true; add.textContent = variant?.availableForSale ? 'Checking shipping…' : 'Sold out'; }
       }
       select.addEventListener('change', showVariantPhoto);
-      const add = button(available ? 'Add to bag' : 'Sold out', () => {
+      const add = button(available ? 'Add to bag' : 'Sold out', async () => {
+        try{await cartReady;}catch{status.textContent=tr('Your bag could not be saved. Please reload and try again.');return;}
         const variant = detail.variants.find(v => v.id === select.value && v.availableForSale);
         if (!variant||!currentShippingQuote?.pricing?.checkoutReady) return;
         const existing = cart.find(l => l.variantId === variant.id);
@@ -446,7 +476,7 @@
         if (!existing && cart.length >= 50) { status.textContent = 'Your bag is full. Please check out first.'; return; }
         if (existing) {existing.quantity=nextQuantity;existing.price=currentShippingQuote.pricing.unitPrice;}
         else cart.push({ productId: detail.id, variantId: variant.id, store, browsingCountry: country, title: detail.title, variantTitle: variant.title, price: currentShippingQuote.pricing.unitPrice, quantity:selectedQuantity });
-        save(); status.textContent = 'Added to your bag.';
+        add.disabled=true;try{await save();status.textContent='Added to your bag.';}catch(error){status.textContent=error.message;}finally{add.disabled=!currentShippingQuote?.pricing?.checkoutReady;}
       });
       add.disabled = true;
       information.delivery.addEventListener('vizimall-shipping-quote',event=>{
@@ -462,7 +492,7 @@
       status.textContent = '';
       selectLabel.hidden = select.hidden = optionGroups.size > 0 || detail.variants.length < 2;
       const purchaseActions = element('div', 'purchase-actions');
-      purchaseActions.append(add, button('View bag', () => { modal.close(); showCart(); }, 'commerce-secondary'));
+      purchaseActions.append(add, button('View bag', () => { modal.close(); cartButton.click(); }, 'commerce-secondary'));
       copy.append(selectLabel, select, selectedOption, stockStatus, purchaseActions, status, information.delivery);
       content.append(copy, information.details);
       if (window.VizimallReviews) window.VizimallReviews(content, detail.id);

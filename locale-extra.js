@@ -1,6 +1,10 @@
 (function(root){
   'use strict';
   const rows=`
+Saved from an earlier visit.|Aus einem früheren Besuch gespeichert.|Αποθηκευμένα από προηγούμενη επίσκεψη.|Enregistré lors d’une visite précédente.|Salvato da una visita precedente.|Guardado de una visita anterior.|Bewaard van een eerder bezoek.|Zapisane z poprzedniej wizyty.|Guardado de uma visita anterior.
+Clear bag|Warenkorb leeren|Άδειασμα καλαθιού|Vider le panier|Svuota il carrello|Vaciar cesta|Tas leegmaken|Wyczyść koszyk|Esvaziar carrinho
+Your bag could not be saved. Please reload and try again.|Ihr Warenkorb konnte nicht gespeichert werden. Bitte laden Sie die Seite neu und versuchen Sie es erneut.|Δεν ήταν δυνατή η αποθήκευση του καλαθιού. Ανανεώστε τη σελίδα και δοκιμάστε ξανά.|Votre panier n’a pas pu être enregistré. Rechargez la page et réessayez.|Impossibile salvare il carrello. Ricarica la pagina e riprova.|No se pudo guardar tu cesta. Recarga la página e inténtalo de nuevo.|Je tas kon niet worden opgeslagen. Vernieuw de pagina en probeer opnieuw.|Nie udało się zapisać koszyka. Odśwież stronę i spróbuj ponownie.|Não foi possível guardar o carrinho. Atualize a página e tente novamente.
+
 Bag ({count})|Warenkorb ({count})|Καλάθι ({count})|Panier ({count})|Carrello ({count})|Cesta ({count})|Tas ({count})|Koszyk ({count})|Carrinho ({count})
 Your bag · Shipping to {place}|Ihr Warenkorb · Lieferung nach {place}|Το καλάθι σας · Αποστολή σε {place}|Votre panier · Livraison vers {place}|Il tuo carrello · Spedizione a {place}|Tu cesta · Envío a {place}|Je tas · Verzending naar {place}|Twój koszyk · Dostawa do {place}|O seu carrinho · Envio para {place}
 Estimated subtotal: {price}|Geschätzte Zwischensumme: {price}|Εκτιμώμενο υποσύνολο: {price}|Sous-total estimé : {price}|Subtotale stimato: {price}|Subtotal estimado: {price}|Geschat subtotaal: {price}|Szacowana suma: {price}|Subtotal estimado: {price}
@@ -109,5 +113,5 @@ Choose {option}: {value}|{option} wählen: {value}|Επιλέξτε {option}: {v
 Quantity for {product}|Menge für {product}|Ποσότητα για {product}|Quantité pour {product}|Quantità per {product}|Cantidad de {product}|Aantal voor {product}|Ilość dla {product}|Quantidade de {product}
 `;
   const codes=Object.keys(root.VizimallLocaleData.languages);
-  for(const line of rows.trim().split('\n')){const[key,...values]=line.split('|');if(values.length!==8)throw Error('Invalid locale row: '+key);root.VizimallLocaleData.messages[key]=Object.fromEntries(codes.map((code,i)=>[code,values[i]]));}
+  for(const line of rows.trim().split('\n').filter(line=>line.trim())){const[key,...values]=line.split('|');if(values.length!==8)throw Error('Invalid locale row: '+key);root.VizimallLocaleData.messages[key]=Object.fromEntries(codes.map((code,i)=>[code,values[i]]));}
 })(typeof window==='undefined'?globalThis:window);
