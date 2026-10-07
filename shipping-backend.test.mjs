@@ -5,6 +5,17 @@ function database(entries=[]){const values=new Map(entries);return {values,get:a
 const settings={domain:'example.myshopify.com',apiVersion:'2026-10',publicToken:'public'};
 const base='https://vizimall.com/api/shipping?variant=gid://shopify/ProductVariant/1&country=DE&shipping=GR&store=tech';
 const variant={id:'gid://shopify/ProductVariant/1',sku:'CJTEST-1',availableForSale:true,product:{tags:['country-germany','country-greece','store-tech']}};
+test('Product-opening country list returns only fresh confirmed countries without contacting CJ',async()=>{
+ const f=fixture();
+ const empty=await(await f.handler(new Request(base+'&check=destinations&cached=1'))).json();
+ assert.deepEqual(empty.destinations,[]);assert.ok(!f.calls.some(c=>c.url.includes('cjdropshipping.com')));
+ await f.handler(new Request(base+'&check=destinations'));
+ const cjCalls=f.calls.filter(c=>c.url.includes('cjdropshipping.com')).length;
+ const result=await(await f.handler(new Request(base+'&check=destinations&cached=1'))).json();
+ assert.ok(result.destinations.includes('DE'));assert.equal(f.calls.filter(c=>c.url.includes('cjdropshipping.com')).length,cjCalls);
+ const entry=[...f.db.values.entries()].find(([k])=>k.startsWith('shipping/private/destinations/'));entry[1].expiresAt=Date.now()-1;
+ assert.deepEqual((await(await f.handler(new Request(base+'&check=destinations&cached=1'))).json()).destinations,[]);
+});
 function fixture(overrides={}){
  const calls=[];const db=database(overrides.entries);const fetcher=async(url,options={})=>{calls.push({url,body:options.body&&JSON.parse(options.body),headers:options.headers});let data;
  if(url.includes('ecb.europa.eu'))return new Response(`<Cube time="${new Date().toISOString().slice(0,10)}"><Cube currency="USD" rate="1.1204"/></Cube>`);

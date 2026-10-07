@@ -135,6 +135,12 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
       const variant=await product(id,browsing);
       if((!variant.availableForSale&&!allowUnavailable&&url.searchParams.get('check')!=='destinations')||![`country-${countries[browsing]}`,`store-${category}`].every(tag=>variant.product.tags.includes(tag)))return reply({status:'unavailable',methods:[]});
       if(!/^CJ[A-Za-z0-9 _-]{3,190}$/.test(variant.sku||''))return reply({status:'not_mapped',methods:[]});
+      if(url.searchParams.get('check')==='destinations'&&url.searchParams.get('cached')==='1'){
+        const discoveryKey='shipping/private/destinations/'+hash(JSON.stringify([id,variant.sku,browsing,quantity]));
+        const state=await db.get(discoveryKey,{type:'json'});
+        const fresh=state?.expiresAt>Date.now();
+        return reply({status:fresh&&state.checked.length+(state.deferred?.length||0)===globalThis.VizimallDestinations.codes.length?'complete':'discovering',destinations:fresh?state.available.filter(c=>globalThis.VizimallDestinations.valid(c)):[],expiresAt:fresh?state.expiresAt:0,retryAfterMs:8000});
+      }
       const key='shipping/quotes/v2/'+hash(JSON.stringify([id,variant.sku,destination,browsing,category,requestedOrigin||browsing,quantity,pricing,catalogMetadata]));
       const cached=await db.get(key,{type:'json'});
       let value;

@@ -46,10 +46,10 @@ class Node {
  dispatchEvent(event){this.listeners[event.type]?.(event);this.events??=[];this.events.push(event);}
 }
 const tick=()=>new Promise(r=>setImmediate(r));
-function productBoot(fetcher){
- const f=boot({fetcher}),nodes=[];
+function productBoot(fetcher,discovery){
+ const f=boot({fetcher:async url=>new URL(url,'https://vizimall.com').searchParams.get('check')==='destinations'?Response.json(discovery?discovery(new URL(url,'https://vizimall.com').searchParams):{status:'complete',destinations:['DE','GR'],expiresAt:Date.now()+6*3600000}):fetcher?fetcher(url):Response.json(quote(new URL(url,'https://vizimall.com').searchParams.get('shipping')))}),nodes=[];
  Object.assign(f.root,{VizimallDestinations:{codes:['DE','GR','US'],valid:code=>['DE','GR','US'].includes(code),name:c=>c},VizimallDelivery:{route:()=>({})},VizimallShipping:{remember:c=>c}});
- Object.assign(f.context,{window:f.root,country:'DE',shippingCountry:'DE',store:'tech',destination:{name:'DE'},storageKey:'',cartInitialized:true,cartReady:Promise.resolve(),cartWrites:Promise.resolve(),loadCart:async()=>{},tr:s=>s,money:p=>p.amount,shippingQuotes:f.client,element:(tag,cls,text)=>{const n=new Node(tag,cls,text);nodes.push(n);return n;},DOMParser:class{parseFromString(){return{body:{childNodes:[]}};}},document:{documentElement:{lang:'de'},body:{},visibilityState:'visible'},CustomEvent:class{constructor(type,options){this.type=type;this.detail=options.detail;}},MutationObserver:class{observe(){}disconnect(){}},setInterval:()=>1,clearInterval:()=>{}});
+ Object.assign(f.context,{window:f.root,country:'DE',shippingCountry:'DE',store:'tech',destination:{name:'DE'},storageKey:'',cartInitialized:true,cartReady:Promise.resolve(),cartWrites:Promise.resolve(),loadCart:async()=>{},tr:s=>s,money:p=>p.amount,shippingQuotes:f.client,element:(tag,cls,text)=>{const n=new Node(tag,cls,text);nodes.push(n);return n;},DOMParser:class{parseFromString(){return{body:{childNodes:[]}};}},document:{documentElement:{lang:'de'},body:{},visibilityState:'visible'},CustomEvent:class{constructor(type,options){this.type=type;this.detail=options.detail;}},MutationObserver:class{observe(){}disconnect(){}},setInterval:()=>1,clearInterval:()=>{},setTimeout:()=>1,clearTimeout:()=>{}});
  const start=source.indexOf('  function productInformation('),end=source.indexOf('  function validLine(');
  vm.runInNewContext(source.slice(start,end),f.context);
  const information=f.context.productInformation({description:''},'tech');
@@ -57,13 +57,24 @@ function productBoot(fetcher){
 }
 test('Product opening requests Germany only; other countries load on selection and cache on return',async()=>{
  const f=productBoot();
- assert.equal(f.selector.value,'DE');assert.equal(f.selector.disabled,false);
+ assert.equal(f.selector.value,'');assert.equal(f.selector.disabled,false);
  f.information.renderDelivery('gid://shopify/ProductVariant/1');await tick();
- assert.equal(f.calls.length,1);assert.equal(new URL(f.calls[0],'https://vizimall.com').searchParams.get('shipping'),'DE');
- assert.ok(!f.calls[0].includes('destinations'));
- f.selector.value='GR';await f.selector.listeners.change();await tick();assert.equal(f.calls.length,2);
- f.selector.value='DE';await f.selector.listeners.change();await tick();assert.equal(f.calls.length,2);
+ assert.equal(f.calls.length,2);assert.equal(new URL(f.calls[1],'https://vizimall.com').searchParams.get('shipping'),'DE');
+ assert.ok(f.calls[0].includes('cached=1'));assert.ok(!f.calls[1].includes('destinations'));
+ assert.deepEqual(f.selector.children.map(n=>n.value),['','DE','GR']);
+ f.selector.value='GR';await f.selector.listeners.change();await tick();assert.equal(f.calls.length,3);
+ f.selector.value='DE';await f.selector.listeners.change();await tick();assert.equal(f.calls.length,3);
  assert.equal(f.information.delivery.attributes['aria-busy'],'false');
+});
+test('Unconfirmed countries stay hidden; supplier discovery starts only after country-control interaction',async()=>{
+ const f=productBoot(undefined,params=>({status:params.has('cached')?'discovering':'complete',destinations:params.has('cached')?['DE']:['DE','GR'],expiresAt:Date.now()+6*3600000}));
+ f.information.renderDelivery('gid://shopify/ProductVariant/1');await tick();
+ assert.deepEqual(f.selector.children.map(n=>n.value),['','DE']);
+ assert.equal(f.calls.length,2);
+ await f.selector.listeners.focus();await tick();
+ assert.equal(f.calls.length,3);assert.ok(!f.calls[2].includes('cached=1'));
+ assert.deepEqual(f.selector.children.map(n=>n.value),['','DE','GR']);
+ await f.selector.listeners.pointerdown();assert.equal(f.calls.length,3);
 });
 test('A late previous-country response cannot overwrite the current shipping price',async()=>{
  const resolvers={};const f=productBoot(url=>new Promise(resolve=>{resolvers[new URL(url,'https://vizimall.com').searchParams.get('shipping')]=resolve;}));
@@ -78,7 +89,8 @@ test('Selecting an unsupported destination keeps the selector usable and blocks 
  const f=productBoot(url=>Response.json(new URL(url,'https://vizimall.com').searchParams.get('shipping')==='US'?{status:'unavailable',reason:'no_shipping_method',methods:[]}:quote()));
  f.information.renderDelivery('gid://shopify/ProductVariant/1');await tick();
  f.selector.value='US';await f.selector.listeners.change();await tick();
- assert.equal(f.selector.disabled,false);assert.equal(f.selector.value,'US');
+ assert.equal(f.selector.disabled,false);assert.equal(f.selector.value,'');
+ assert.ok(!f.selector.children.some(n=>n.value==='US'));
  assert.equal(f.information.delivery.events.at(-1).detail.quote.status,'unavailable');
  f.selector.value='DE';await f.selector.listeners.change();await tick();
  assert.equal(f.information.delivery.events.at(-1).detail.quote.destination,'DE');

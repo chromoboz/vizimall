@@ -3,7 +3,7 @@ import {update,random} from './backend-persistence.mjs';
 // Work is bounded and shared between visitors; transient failures stay pending.
 export async function discoverDestinations({db,key,codes,priority=[],probe,now=()=>Date.now(),batchSize=12,budgetMs=14000}){
  const owner=random(),started=now(),valid=new Set(codes);
- const empty=()=>({checked:[],available:[],failures:{},attempts:{},deferred:[],expiresAt:started+900000});
+ const empty=()=>({checked:[],available:[],failures:{},attempts:{},deferred:[],expiresAt:started+6*3600000});
  const summary=s=>({status:s.checked.length+(s.deferred?.length||0)===codes.length?'complete':'discovering',unverified:(s.deferred?.length||0),destinations:s.available.filter(c=>valid.has(c)),checked:s.checked.length,total:codes.length,expiresAt:s.expiresAt,retryAfterMs:8000});
  let state=await db.get(key,{type:'json'});
  if(state?.expiresAt>started&&state.checked.length+(state.deferred?.length||0)===codes.length)return summary(state);

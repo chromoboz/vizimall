@@ -39,7 +39,20 @@ function createShippingQuoteClient(root) {
     pending.set(key,task);
     return task;
   }
-  return {get,read};
+  function destinations(query,refresh=false) {
+    const params=new URLSearchParams(query);params.set('check','destinations');
+    if(!refresh)params.set('cached','1');
+    const key=keyFor(params);
+    if(pending.has(key))return pending.get(key);
+    const task=(async()=>{
+      const response=await root.fetch('/.netlify/functions/shipping?'+params,{credentials:'same-origin',signal:AbortSignal.timeout(45000)});
+      const result=await response.json();
+      if(!response.ok||!Array.isArray(result.destinations))throw Error('Destination check unavailable');
+      return result;
+    })().finally(()=>pending.delete(key));
+    pending.set(key,task);return task;
+  }
+  return {get,read,destinations};
 }
 (() => {
   'use strict';
@@ -127,18 +140,42 @@ function createShippingQuoteClient(root) {
     const selector = element('select'); selector.setAttribute('aria-label', 'Product shipping country');
     const destinationStatus=element('p','delivery-source');
     destinationStatus.setAttribute('role','status');
+    let destinationCodes=new Set(),discoveryIdentity='',discoveryNumber=0,discoveryTimer,discoveryActive=false,discoveryComplete=false;
     function setDestinations(codes) {
-      const destinationCodes=new Set(codes.filter(code=>window.VizimallDestinations.valid(code)));
+      destinationCodes=new Set(codes.filter(code=>window.VizimallDestinations.valid(code)));
       selector.replaceChildren();
       const placeholder=element('option','','Choose delivery country');placeholder.value='';placeholder.disabled=true;selector.append(placeholder);
       for(const code of [...destinationCodes].sort((a,b)=>window.VizimallDestinations.name(a).localeCompare(window.VizimallDestinations.name(b)))){
         const option=element('option','',window.VizimallDestinations.name(code));option.value=code;selector.append(option);
       }
       selector.value=destinationCodes.has(shippingCountry)?shippingCountry:'';
-      selector.disabled=destinationCodes.size===0;
+      selector.disabled=false;
     }
-    setDestinations(window.VizimallDestinations.codes);
-    destinationStatus.textContent=tr('Select a country to check delivery availability.');
+    setDestinations([]);
+    destinationStatus.textContent=tr('Checking available delivery countries…');
+    function discoveryStatus() {
+      destinationStatus.textContent=tr(discoveryComplete?'Only confirmed delivery countries are listed.':'{count} delivery countries confirmed. Checking more…',{count:destinationCodes.size});
+    }
+    async function discover(refresh=false) {
+      if(!lastVariant||discoveryActive||(refresh&&discoveryComplete))return;
+      const identity=discoveryIdentity,number=discoveryNumber;
+      const query=new URLSearchParams({variant:lastVariant,country,store,shipping:shippingCountry,quantity:quantity.value});
+      discoveryActive=true;
+      try{
+        const result=await shippingQuotes.destinations(query,refresh);
+        if(number!==discoveryNumber||identity!==discoveryIdentity||!delivery.isConnected)return;
+        setDestinations([...destinationCodes,...result.destinations]);
+        discoveryComplete=result.status==='complete';
+        discoveryStatus();
+        if(refresh&&!discoveryComplete)discoveryTimer=setTimeout(()=>{if(delivery.isConnected&&document.visibilityState==='visible')discover(true);},Math.max(8000,result.retryAfterMs||8000));
+      }catch{
+        if(number===discoveryNumber&&delivery.isConnected)destinationStatus.textContent=tr('Only confirmed delivery countries are listed.');
+      }finally{if(number===discoveryNumber)discoveryActive=false;}
+    }
+    // Opening a product only reads existing confirmations. Supplier discovery
+    // starts when the customer interacts with the country control.
+    selector.addEventListener('focus',()=>discover(true));
+    selector.addEventListener('pointerdown',()=>discover(true));
     let selectionNumber=0;
     selector.addEventListener('change', async () => {
       const selected=selector.value, selection=++selectionNumber;
@@ -170,6 +207,11 @@ function createShippingQuoteClient(root) {
     let lastVariant, requestNumber = 0;
     function renderDelivery(variantId, from) {
       lastVariant = variantId;
+      const identity=variantId+'|'+country+'|'+(from||country)+'|'+quantity.value;
+      if(variantId&&identity!==discoveryIdentity){
+        discoveryIdentity=identity;++discoveryNumber;discoveryActive=false;discoveryComplete=false;
+        clearTimeout(discoveryTimer);setDestinations([]);discover();
+      }
       delivery.dispatchEvent(new CustomEvent('vizimall-shipping-quote',{detail:{variantId,quote:null},bubbles:true}));
       const requestId = ++requestNumber;
       delivery.setAttribute('aria-busy','false');
@@ -191,11 +233,12 @@ function createShippingQuoteClient(root) {
       function applyQuote(quote,preview=false) {
         if (requestId !== requestNumber || !delivery.isConnected) return;
         delivery.setAttribute('aria-busy',String(preview));
-        destinationStatus.textContent=preview?tr('Checking shipping…'):tr('Select a country to check delivery availability.');
+        if(preview)destinationStatus.textContent=tr('Checking shipping…');else discoveryStatus();
         if(quote.status!=='available')delivery.dispatchEvent(new CustomEvent('vizimall-shipping-quote',{detail:{variantId,quote},bubbles:true}));
         if (quote.status === 'not_connected' || quote.status === 'not_mapped') return;
-        if (quote.status === 'unavailable') { table.replaceChildren(element('dt','','Availability'),element('dd','','No shipping option available for this quantity and destination.')); note.textContent='Choose another destination or quantity.'; return; }
+        if (quote.status === 'unavailable') { if(!preview){destinationCodes.delete(shippingCountry);setDestinations([...destinationCodes]);discoveryStatus();} table.replaceChildren(element('dt','','Availability'),element('dd','','No shipping option available for this quantity and destination.')); note.textContent='Choose another destination or quantity.'; return; }
         if (quote.status !== 'available') { note.textContent=tr('Live shipping information is temporarily unavailable.'); return; }
+        setDestinations([...destinationCodes,shippingCountry]);if(!preview)discoveryStatus();
         originControl.replaceChildren();
         for (const code of quote.origins) { const option=element('option','',window.VizimallDestinations.name(code)); option.value=code; originControl.append(option); }
         originControl.value=quote.from; originLabel.hidden=false;
@@ -224,7 +267,7 @@ function createShippingQuoteClient(root) {
     quantity.addEventListener('change',()=>renderDelivery(lastVariant,originControl.value||undefined));
     originControl.addEventListener('change',()=>renderDelivery(lastVariant,originControl.value));
     const refresh=setInterval(()=>{if(delivery.isConnected&&document.visibilityState==='visible')renderDelivery(lastVariant,originControl.value||undefined);},300000);
-    const cleanup=new MutationObserver(()=>{if(!delivery.isConnected){clearInterval(refresh);++requestNumber;++selectionNumber;cleanup.disconnect();}});
+    const cleanup=new MutationObserver(()=>{if(!delivery.isConnected){clearInterval(refresh);clearTimeout(discoveryTimer);++discoveryNumber;++requestNumber;++selectionNumber;cleanup.disconnect();}});
     cleanup.observe(document.body,{childList:true});
     renderDelivery();
     return { details, delivery, renderDelivery };

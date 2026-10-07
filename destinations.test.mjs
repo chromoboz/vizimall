@@ -18,7 +18,7 @@ test('Expired availability is discarded and a changed quantity or variant uses a
  const args={db,key:'sku-1',codes:['DE','US'],now:()=>time,probe:async()=>available};
  assert.equal((await discoverDestinations(args)).destinations.length,2);
  available=false;assert.deepEqual((await discoverDestinations({...args,key:'sku-2'})).destinations,[]);
- time+=900001;assert.deepEqual((await discoverDestinations(args)).destinations,[]);
+ time+=6*3600000+1;assert.deepEqual((await discoverDestinations(args)).destinations,[]);
 });
 test('Parallel visitors share a lease instead of multiplying CJ scans',async()=>{
  const db=database();let release;const wait=new Promise(resolve=>release=resolve),calls=[];
