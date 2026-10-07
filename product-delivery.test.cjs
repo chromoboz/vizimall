@@ -2,6 +2,14 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {readFileSync}=require('node:fs');
 const vm=require('node:vm');
+test('Germany is the default delivery country; explicit and remembered choices take priority',()=>{
+ for(const [requested,remembered,expected] of [['','','DE'],['US','','US'],['','GR','GR']]){
+  const context={URL,Object,location:{href:'https://vizimall.com/tech.html?country=NL'+(requested?'&shipping='+requested:''),origin:'https://vizimall.com'},localStorage:{getItem:()=>remembered,setItem(){}},history:{replaceState(){}},document:{documentElement:{dataset:{}},querySelectorAll:()=>[],addEventListener(){}}};
+  context.window={VizimallDestinations:{codes:['DE','NL','GR','US'],name:c=>c},addEventListener(){}};
+  vm.runInNewContext(readFileSync('shipping-country.js','utf8'),context);
+  assert.equal(context.window.VizimallShipping.country,expected);
+ }
+});
 test('Product delivery changes stay in the supplier page without creating a header selector',()=>{
  const saved=new Map(), navigations=[], replacements=[];
  const document={documentElement:{dataset:{country:'DE'}},querySelector(){throw Error('Delivery controls must live inside the product');},querySelectorAll(){return[];},addEventListener(){}};

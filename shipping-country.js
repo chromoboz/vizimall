@@ -10,7 +10,7 @@
   const browsing = normalize(url.searchParams.get('country'));
   const initial = url.pathname === '/' || /\/index(?:\.html)?\/?$/.test(url.pathname);
   const remembered = stored();
-  let country = valid(requested) ? requested : valid(remembered) ? remembered : valid(browsing) ? browsing : 'DE';
+  let country = valid(requested) ? requested : valid(remembered) ? remembered : 'DE';
   if (!initial || valid(requested) || valid(remembered)) { try { localStorage.setItem(key, country); } catch {} }
   document.documentElement.dataset.shippingCountry = country;
   url.searchParams.set('shipping', country);

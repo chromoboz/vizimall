@@ -6,6 +6,7 @@ const countries = {DE:'germany',NL:'netherlands',FR:'france',GR:'greece',IT:'ita
 const stores = ['tech','home','pets','beauty','fashion','kids','auto'];
 const cjBase = 'https://developers.cjdropshipping.com/api2.0/v1/';
 const cacheMs = 300000;
+const quoteCacheMs = 6 * 60 * 60 * 1000;
 export function createShippingHandler({dbFactory=store, fetcher=fetch, env=process.env, storefrontConfig, probeSku='CJQT25986940004',probeSkus=[],pricing=false,catalogMetadata=false,allowUnavailable=false,supplierPacingMs=1100}={}) {
   let tokenPending, supplierDb;
   async function cj(path, token, body, timeoutMs=12000) {
@@ -74,7 +75,8 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
     const body=await response.json();if(!response.ok||body.errors||!body.data?.node)throw new Error('Product unavailable');
     return body.data.node;
   }
-  return async function handler(req,context={}) {
+  const pending = new Map();
+  async function handler(req,context={}) {
     const reply=(data,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
     if(req.method!=='GET')return reply({error:'Method not allowed'},405);
     if(!env.CJ_API_KEY)return reply({status:'not_connected',methods:[]});
@@ -133,8 +135,22 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
       const variant=await product(id,browsing);
       if((!variant.availableForSale&&!allowUnavailable&&url.searchParams.get('check')!=='destinations')||![`country-${countries[browsing]}`,`store-${category}`].every(tag=>variant.product.tags.includes(tag)))return reply({status:'unavailable',methods:[]});
       if(!/^CJ[A-Za-z0-9 _-]{3,190}$/.test(variant.sku||''))return reply({status:'not_mapped',methods:[]});
-      const key='shipping/quotes/'+hash(JSON.stringify([id,variant.sku,destination,browsing,category,requestedOrigin,quantity]));
-      const cached=await db.get(key,{type:'json'});if(cached?.expiresAt>Date.now()&&!pricing)return reply(cached);
+      const key='shipping/quotes/v2/'+hash(JSON.stringify([id,variant.sku,destination,browsing,category,requestedOrigin||browsing,quantity,pricing,catalogMetadata]));
+      const cached=await db.get(key,{type:'json'});
+      let value;
+      if(url.searchParams.get('check')!=='destinations'&&cached?.status==='available'&&cached.expiresAt>Date.now()) {
+        // Supplier data is persistent; eligibility and included prices stay current.
+        value={...cached};
+        // Stock keeps its shorter freshness window; freight stays cached for six hours.
+        if((value.stockCheckedAt||Date.parse(value.checkedAt))<=Date.now()-cacheMs){
+          const access=await token(db);
+          const stock=await cj('product/stock/queryBySku?sku='+encodeURIComponent(variant.sku),access);
+          const current=(Array.isArray(stock)?stock:[]).filter(s=>s.countryCode===browsing&&Number.isSafeInteger(Number(s.totalInventoryNum))&&Number(s.totalInventoryNum)>=quantity);
+          if(!current.length)return reply({status:'unavailable',origins:[],methods:[]});
+          value.stockQuantity=Math.max(...current.map(s=>Number(s.totalInventoryNum)));
+          value.stockCheckedAt=Date.now();
+        }
+      } else {
       await limit(db,'shipping:global',120,60000);
       const access=await token(db);
       const matched=await findVariant(variant.sku,access);
@@ -165,11 +181,14 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
         qualification={sku:variant.sku,processingHours:exact.length===1&&[24,48,72].includes(Number(exact[0].deliveryTime))?Number(exact[0].deliveryTime):null,expiresAt:Date.now()+86400000};
         await db.setJSON(qualificationKey,qualification);
       }
-      const value={status:methods.length?'available':'unavailable',...(methods.length?{}:{reason:'no_shipping_method'}),sku:variant.sku,origins,from,destination,quantity,methods,stockQuantity:Math.max(...originStock.map(s=>Number(s.totalInventoryNum))),stockSource:'CJ reported warehouse inventory',processingHours:qualification?.sku===variant.sku&&qualification?.expiresAt>Date.now()?qualification.processingHours:null,checkedAt:new Date().toISOString(),expiresAt:Date.now()+cacheMs};
+      value={status:methods.length?'available':'unavailable',...(methods.length?{}:{reason:'no_shipping_method'}),sku:variant.sku,origins,from,destination,quantity,methods,stockQuantity:Math.max(...originStock.map(s=>Number(s.totalInventoryNum))),stockSource:'CJ reported warehouse inventory',processingHours:qualification?.sku===variant.sku&&qualification?.expiresAt>Date.now()?qualification.processingHours:null,checkedAt:new Date().toISOString(),expiresAt:Date.now()+quoteCacheMs};
+      if(pricing&&methods.length&&quantity!==1)value.unitMethods=shippingMethods(await cj('logistic/freightCalculate',access,{startCountryCode:from,endCountryCode:destination,products:[{vid:matched.vid,quantity:1}]}));
+      }
+      const methods=value.methods;
       if(pricing&&methods.length){
         // Destination prices are private scheduled writes, never public mutations.
         // A quote can enqueue a request; checkout waits for Shopify confirmation.
-        const unitOptions=quantity===1?methods:shippingMethods(await cj('logistic/freightCalculate',access,{startCountryCode:from,endCountryCode:destination,products:[{vid:matched.vid,quantity:1}]}));
+        const unitOptions=quantity===1?methods:value.unitMethods;
         const standard=cheapestMethod(unitOptions.filter(option=>methods.some(method=>method.name===option.name)));
         if(!standard)throw new Error('Standard unit shipping unavailable');
         const previous=await db.get('shipping/private/base-price/'+id.split('/').at(-1),{type:'json'});
@@ -190,7 +209,23 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
           await update(db,'shipping/private/context-queue',old=>({items:(old?.items||[]).some(i=>i.variantId===id&&i.destination===destination)?old.items:[...(old?.items||[]),{variantId:id,sku:variant.sku,browsing,category,destination,requestedAt:Date.now()}].slice(-100)}));
         }
       }
-      await db.setJSON(key,value);return reply(value);
+      if(value.status==='available')await db.setJSON(key,value);
+      return reply(value);
     }catch(error){return reply({status:'temporarily_unavailable',methods:[],...(error.supplierCode!=null?{supplierCode:error.supplierCode,supplierStep:error.supplierStep}: {})},503);}
+  }
+  return async function(req,context={}) {
+    if(req.method!=='GET')return handler(req,context);
+    const url=new URL(req.url);
+    if(url.searchParams.has('variant')){
+      url.searchParams.set('from',url.searchParams.get('from')||url.searchParams.get('country')||'');
+      url.searchParams.set('quantity',url.searchParams.get('quantity')||'1');
+    }
+    url.searchParams.sort();
+    const key=url.origin+'?'+url.searchParams.toString();
+    if(!pending.has(key)){
+      const task=handler(req,context).finally(()=>pending.delete(key));
+      pending.set(key,task);
+    }
+    return (await pending.get(key)).clone();
   };
 }

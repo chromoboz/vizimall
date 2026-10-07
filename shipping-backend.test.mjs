@@ -17,6 +17,65 @@ function fixture(overrides={}){
  return Response.json({result:true,code:200,data});};
  return {calls,db,handler:createShippingHandler({dbFactory:async()=>db,fetcher,env:{CJ_API_KEY:'test-secret'},storefrontConfig:settings,probeSku:'CJTEST-1',pricing:overrides.pricing||false,allowUnavailable:overrides.allowUnavailable||false,supplierPacingMs:0})};
 }
+test('Parallel identical quotes share work across shoppers and default/explicit origin',async()=>{
+ const f=fixture();
+ const results=await Promise.all(Array.from({length:8},(_,i)=>f.handler(new Request(base+(i%2?'&from=DE&quantity=1':'')),{ip:String(i)}).then(r=>r.json())));
+ assert.ok(results.every(q=>q.status==='available'));
+ assert.equal(f.calls.filter(c=>c.url.includes('freightCalculate')).length,1);
+ assert.equal(f.calls.filter(c=>c.url.includes('myshopify.com')).length,1);
+});
+test('Six-hour persistent cache also works with pricing and rechecks readiness without CJ',async()=>{
+ const f=fixture({pricing:true,variant:{...variant,price:{amount:'21.90',currencyCode:'EUR'}}});
+ const first=await(await f.handler(new Request(base))).json();
+ assert.equal(first.pricing.checkoutReady,false);
+ assert.ok(first.expiresAt-Date.parse(first.checkedAt)>=6*3600000-1000);
+ const cjCount=f.calls.filter(c=>c.url.includes('cjdropshipping.com')).length;
+ f.db.values.set('shipping/private/context-price/1/GR',{sku:'CJTEST-1',profileConfirmed:true,expiresAt:Date.now()+60000,price:first.pricing.unitPrice});
+ const second=await(await f.handler(new Request(base+'&from=DE'))).json();
+ assert.equal(second.pricing.checkoutReady,true);
+ assert.equal(f.calls.filter(c=>c.url.includes('cjdropshipping.com')).length,cjCount);
+ f.db.values.get('shipping/private/context-price/1/GR').expiresAt=Date.now()-1;
+ assert.equal((await(await f.handler(new Request(base))).json()).pricing.checkoutReady,false);
+ assert.equal(f.calls.filter(c=>c.url.includes('cjdropshipping.com')).length,cjCount);
+ // A new handler instance shares the persistent data.
+ const next=createShippingHandler({dbFactory:async()=>f.db,env:{CJ_API_KEY:'test-secret'},storefrontConfig:settings,pricing:true,supplierPacingMs:0,fetcher:async(url)=>{
+   assert.ok(url.includes('myshopify.com'),'Persistent hit must avoid supplier calls');
+   return Response.json({data:{node:{...variant,price:{amount:'21.90',currencyCode:'EUR'}}}});
+ }});
+ assert.equal((await(await next(new Request(base))).json()).status,'available');
+});
+test('Cached quantity quotes retain unit methods and do not repeat either freight calculation',async()=>{
+ const f=fixture({pricing:true,variant:{...variant,price:{amount:'21.90',currencyCode:'EUR'}}});
+ await f.handler(new Request(base+'&quantity=2'));
+ await f.handler(new Request(base+'&quantity=2&from=DE'));
+ assert.equal(f.calls.filter(c=>c.url.includes('freightCalculate')).length,2);
+});
+test('Quote expiry, stock freshness, changed SKU and destinations invalidate only the relevant data',async()=>{
+ const options={stock:[{countryCode:'DE',totalInventoryNum:10}]},f=fixture(options);
+ await f.handler(new Request(base));
+ const key=[...f.db.values.keys()].find(k=>k.startsWith('shipping/quotes/v2/'));
+ const quote=f.db.values.get(key);
+ quote.stockCheckedAt=Date.now()-300001;
+ await f.handler(new Request(base));
+ assert.equal(f.calls.filter(c=>c.url.includes('freightCalculate')).length,1);
+ assert.equal(f.calls.filter(c=>c.url.includes('stock/query')).length,2);
+ f.db.values.get(key).stockCheckedAt=Date.now()-300001;options.stock[0].totalInventoryNum=0;
+ assert.equal((await(await f.handler(new Request(base))).json()).status,'unavailable');
+ options.stock[0].totalInventoryNum=10;f.db.values.get(key).expiresAt=Date.now()-1;
+ await f.handler(new Request(base));
+ await f.handler(new Request(base.replace('shipping=GR','shipping=DE')));
+ await f.handler(new Request(base+'&quantity=2'));
+ assert.equal(f.calls.filter(c=>c.url.includes('freightCalculate')).length,4);
+ options.variant={...variant,sku:'CJCHANGED-1'};
+ assert.equal((await(await f.handler(new Request(base))).json()).status,'not_mapped');
+});
+test('Failed supplier quotes are retried and do not poison the persistent cache',async()=>{
+ const options={methods:[]},f=fixture(options);
+ assert.equal((await(await f.handler(new Request(base))).json()).status,'unavailable');
+ options.methods=[{logisticName:'DHL',logisticPrice:0,logisticAging:'3-5'}];
+ assert.equal((await(await f.handler(new Request(base))).json()).status,'available');
+ assert.equal(f.calls.filter(c=>c.url.includes('freightCalculate')).length,2);
+});
 test('Absent CJ configuration performs no supplier requests',async()=>{const handler=createShippingHandler({env:{},fetcher:()=>{throw Error('must not call')}});assert.equal((await (await handler(new Request(base))).json()).status,'not_connected');});
 test('CJ variant parameter rejection falls back to product details and still requires an exact SKU',async()=>{
  for(const [detailVariants,expected] of [[[{vid:'cj-variant',variantSku:'CJTEST-1'}],'available'],[[{vid:'other',variantSku:'CJOTHER'}],'not_mapped']]){

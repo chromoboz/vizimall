@@ -1,3 +1,46 @@
+// Cache presentation data separately from short-lived checkout confirmation.
+function createShippingQuoteClient(root) {
+  const pending=new Map(), memory=new Map(), ttl=6*60*60*1000;
+  function keyFor(query) {
+    const normalized=new URLSearchParams(query);
+    normalized.set('from',normalized.get('from')||normalized.get('country'));
+    normalized.set('quantity',normalized.get('quantity')||'1');
+    normalized.sort();
+    return 'vizimall-shipping-v2:'+root.VIZIMALL_SHOPIFY.domain+':'+normalized;
+  }
+  function read(query) {
+    const key=keyFor(query);
+    try {
+      const entry=memory.get(key)||JSON.parse(root.localStorage.getItem(key));
+      if(entry?.quote?.status!=='available'||!Array.isArray(entry.quote.methods)||!Number.isFinite(entry.expiresAt)||entry.expiresAt<=Date.now())return null;
+      memory.set(key,entry);
+      return entry;
+    } catch { return null; }
+  }
+  function get(query) {
+    const key=keyFor(query), entry=read(query);
+    // Price, eligibility and checkout confirmation are revalidated by the server.
+    if(entry&&entry.validatedAt>Date.now()-60000)return Promise.resolve(entry.quote);
+    if(pending.has(key))return pending.get(key);
+    const task=(async()=>{
+      const response=await root.fetch('/.netlify/functions/shipping?'+query,{credentials:'same-origin',signal:AbortSignal.timeout(45000)});
+      const quote=await response.json();
+      if(!response.ok)throw Error('Shipping check unavailable');
+      if(quote.status==='available'&&quote.methods?.length){
+        const next={quote,validatedAt:Date.now(),expiresAt:Math.min(quote.expiresAt||Date.now()+ttl,Date.now()+ttl)};
+        memory.set(key,next);
+        try { root.localStorage.setItem(key,JSON.stringify(next)); } catch {}
+      }else{
+        memory.delete(key);
+        try { root.localStorage.removeItem(key); } catch {}
+      }
+      return quote;
+    })().finally(()=>pending.delete(key));
+    pending.set(key,task);
+    return task;
+  }
+  return {get,read};
+}
 (() => {
   'use strict';
   const country = document.documentElement.dataset.country;
@@ -11,6 +54,7 @@
   let client, connectionError;
   try { client = api.createClient(window.VIZIMALL_SHOPIFY); } catch (error) { connectionError = error; }
   const tr = (key,values) => window.VizimallLocale?.t(key,values)||key;
+  const shippingQuotes=createShippingQuoteClient(window);
   function element(tag, className, text) {
     const node = document.createElement(tag);
     if (className) node.className = className;
@@ -81,11 +125,10 @@
     delivery.replaceChildren(element('h3', '', 'Delivery'));
     const shipLabel = element('label', 'delivery-country', 'Ship to: ');
     const selector = element('select'); selector.setAttribute('aria-label', 'Product shipping country');
-    let destinationCodes=new Set(), discoveryIdentity='', discoveryExpiresAt=0, discoveryController, discoveryTimer;
-    const destinationStatus=element('p','delivery-source','Checking available delivery countries…');
+    const destinationStatus=element('p','delivery-source');
     destinationStatus.setAttribute('role','status');
     function setDestinations(codes) {
-      destinationCodes=new Set(codes.filter(code=>window.VizimallDestinations.valid(code)));
+      const destinationCodes=new Set(codes.filter(code=>window.VizimallDestinations.valid(code)));
       selector.replaceChildren();
       const placeholder=element('option','','Choose delivery country');placeholder.value='';placeholder.disabled=true;selector.append(placeholder);
       for(const code of [...destinationCodes].sort((a,b)=>window.VizimallDestinations.name(a).localeCompare(window.VizimallDestinations.name(b)))){
@@ -94,36 +137,19 @@
       selector.value=destinationCodes.has(shippingCountry)?shippingCountry:'';
       selector.disabled=destinationCodes.size===0;
     }
-    setDestinations([]);
-    function discover(variantId) {
-      const identity=variantId+'|'+quantity.value;
-      if(!variantId||(identity===discoveryIdentity&&(!discoveryExpiresAt||discoveryExpiresAt>Date.now())))return;
-      discoveryExpiresAt=0;
-      discoveryIdentity=identity;discoveryController?.abort();clearTimeout(discoveryTimer);setDestinations([]);
-      destinationStatus.textContent='Checking available delivery countries…';
-      discoveryController=new AbortController();
-      async function next() {
-        if(discoveryController.signal.aborted||!delivery.isConnected)return;
-        if(document.visibilityState==='hidden'){discoveryTimer=setTimeout(next,15000);return;}
-        const controller=discoveryController;
-        try{
-          const query=new URLSearchParams({check:'destinations',variant:variantId,country,store,shipping:shippingCountry,quantity:quantity.value});
-          const response=await fetch('/.netlify/functions/shipping?'+query,{credentials:'same-origin',signal:AbortSignal.any([controller.signal,AbortSignal.timeout(45000)])});
-          const result=await response.json();
-          if(controller.signal.aborted||identity!==discoveryIdentity)return;
-          if(!response.ok)throw Error('Destination check unavailable');
-          if(!Array.isArray(result.destinations)){destinationStatus.textContent='Delivery countries could not be confirmed for this option.';return;}
-          discoveryExpiresAt=result.expiresAt||Date.now()+900000;
-          setDestinations([...destinationCodes,...result.destinations]);
-          destinationStatus.textContent=result.status==='complete'?(destinationCodes.size?'Only confirmed delivery countries are listed.'+(result.unverified?' Some country checks could not be completed.':''):'No delivery countries have been confirmed for this option.'):destinationCodes.size+' delivery countries confirmed. Checking more…';
-          if(result.status!=='complete')discoveryTimer=setTimeout(next,Math.max(8000,result.retryAfterMs||8000));
-        }catch(error){if(!controller.signal.aborted){destinationStatus.textContent='Only confirmed countries are shown. Checking additional destinations…';discoveryTimer=setTimeout(next,15000);}}
-      }
-      discoveryTimer=setTimeout(next,0);
-    }
+    setDestinations(window.VizimallDestinations.codes);
+    destinationStatus.textContent=tr('Select a country to check delivery availability.');
+    let selectionNumber=0;
     selector.addEventListener('change', async () => {
+      const selected=selector.value, selection=++selectionNumber;
+      ++requestNumber; // Ignore a previous country's response while the cart settles.
+      delivery.setAttribute('aria-busy','true');
+      destinationStatus.textContent=tr('Checking shipping…');
+      table.replaceChildren();methodLabel.hidden=originLabel.hidden=true;
+      delivery.dispatchEvent(new CustomEvent('vizimall-shipping-quote',{detail:{variantId:lastVariant,quote:null},bubbles:true}));
       await cartReady.catch(()=>{}); await cartWrites.catch(()=>{});
-      shippingCountry = window.VizimallShipping.remember(selector.value);
+      if(selection!==selectionNumber||!delivery.isConnected)return;
+      shippingCountry = window.VizimallShipping.remember(selected);
       destination.name = window.VizimallDestinations.name(shippingCountry);
       storageKey = `vizimall-cart-v2:guest:${window.VIZIMALL_SHOPIFY.domain}:${shippingCountry}`;
       cartInitialized=false;
@@ -141,12 +167,12 @@
     const methodControl = element('select'); methodControl.setAttribute('aria-label','Shipping method'); methodLabel.append(methodControl); methodLabel.hidden = true;
     const table = element('dl', 'delivery-facts');
     delivery.append(originLabel, methodLabel, table);
-    let lastVariant, requestNumber = 0, quoteController;
+    let lastVariant, requestNumber = 0;
     function renderDelivery(variantId, from) {
       lastVariant = variantId;
-      discover(variantId);
       delivery.dispatchEvent(new CustomEvent('vizimall-shipping-quote',{detail:{variantId,quote:null},bubbles:true}));
-      quoteController?.abort(); const requestId = ++requestNumber;
+      const requestId = ++requestNumber;
+      delivery.setAttribute('aria-busy','false');
       methodLabel.hidden = originLabel.hidden = true;
       const route = window.VizimallDelivery.route(detail, shippingCountry, variantId);
       table.replaceChildren();
@@ -158,16 +184,18 @@
       ]) { table.append(element('dt', '', label), element('dd', '', value)); }
       note.textContent = tr('Delivery estimates are not guaranteed. Preparation and transport are separate.');
       if (!variantId || !Number.isInteger(Number(quantity.value)) || Number(quantity.value)<1 || Number(quantity.value)>99) return;
-      quoteController = new AbortController();
       const query = new URLSearchParams({ variant:variantId, shipping:shippingCountry, country, store, quantity:quantity.value });
       if (from) query.set('from',from);
-      fetch('/.netlify/functions/shipping?'+query, { signal:quoteController.signal,credentials:'same-origin' }).then(response => response.json()).then(quote => {
+      delivery.setAttribute('aria-busy','true');
+      destinationStatus.textContent=tr('Checking shipping…');
+      function applyQuote(quote,preview=false) {
         if (requestId !== requestNumber || !delivery.isConnected) return;
+        delivery.setAttribute('aria-busy',String(preview));
+        destinationStatus.textContent=preview?tr('Checking shipping…'):tr('Select a country to check delivery availability.');
         if(quote.status!=='available')delivery.dispatchEvent(new CustomEvent('vizimall-shipping-quote',{detail:{variantId,quote},bubbles:true}));
         if (quote.status === 'not_connected' || quote.status === 'not_mapped') return;
-        if (quote.status === 'unavailable') { if(quote.reason==='no_shipping_method'){destinationCodes.delete(shippingCountry);setDestinations([...destinationCodes]);} table.replaceChildren(element('dt','','Availability'),element('dd','','No shipping option available for this quantity and destination.')); note.textContent='Choose another destination or quantity.'; return; }
+        if (quote.status === 'unavailable') { table.replaceChildren(element('dt','','Availability'),element('dd','','No shipping option available for this quantity and destination.')); note.textContent='Choose another destination or quantity.'; return; }
         if (quote.status !== 'available') { note.textContent=tr('Live shipping information is temporarily unavailable.'); return; }
-        destinationCodes.add(shippingCountry);setDestinations([...destinationCodes]);
         originControl.replaceChildren();
         for (const code of quote.origins) { const option=element('option','',window.VizimallDestinations.name(code)); option.value=code; originControl.append(option); }
         originControl.value=quote.from; originLabel.hidden=false;
@@ -180,20 +208,23 @@
         function showQuote() {
           const method=quote.methods[Number(methodControl.value)]; if(!method)return;
           table.replaceChildren();
-          const rows=[['Processing time',quote.processingHours?'Ships within '+quote.processingHours+' hours':route.processing||'Not provided by supplier'],['Estimated transport',method.transport+' days; preparation is additional'],['Warehouse stock',Number.isSafeInteger(quote.stockQuantity)?quote.stockQuantity.toLocaleString(document.documentElement.lang)+' remaining in '+window.VizimallDestinations.name(quote.from):'Not provided']];
+          const rows=[['Processing time',quote.processingHours?'Ships within '+quote.processingHours+' hours':route.processing||'Not provided by supplier'],['Estimated transport',method.transport+' days; preparation is additional'],['Warehouse stock',Number.isSafeInteger(quote.stockQuantity)?quote.stockQuantity.toLocaleString(document.documentElement.lang)+' remaining in '+window.VizimallDestinations.name(quote.from):'Not provided'],['Last checked',new Date(quote.stockCheckedAt||quote.checkedAt).toLocaleString(document.documentElement.lang)]];
           if(quote.pricing)rows.push(['Price including standard shipping per item',money(quote.pricing.unitPrice)],[tr('Total for {count} item(s)',{count:quote.quantity}),money(quote.pricing.lineTotal)]);
           for(const [label,value] of rows)table.append(element('dt','',label),element('dd','',value));
           note.textContent=tr(quote.pricing?.checkoutReady?'Standard shipping is included per item.':'The final price is being confirmed. Please wait before adding to your bag.')+' '+tr('Delivery estimates are not guaranteed. Preparation and transport are separate.');
           delivery.dispatchEvent(new CustomEvent('vizimall-shipping-quote',{detail:{variantId,quote},bubbles:true}));
         }
         methodControl.onchange=showQuote;showQuote();
-      }).catch(error => { if(requestId===requestNumber && error.name!=='AbortError'){note.textContent=tr('Live shipping information is temporarily unavailable.');delivery.dispatchEvent(new CustomEvent('vizimall-shipping-quote',{detail:{variantId,quote:{status:'temporarily_unavailable'}},bubbles:true}));} });
+      }
+      const cached=shippingQuotes.read(query);
+      if(cached)applyQuote({...cached.quote,...(cached.quote.pricing?{pricing:{...cached.quote.pricing,checkoutReady:false}}:{})},true);
+      shippingQuotes.get(query).then(quote=>applyQuote(quote)).catch(error => { if(requestId===requestNumber&&delivery.isConnected){delivery.setAttribute('aria-busy','false');destinationStatus.textContent=tr('Live shipping information is temporarily unavailable.');note.textContent=tr('Live shipping information is temporarily unavailable.');delivery.dispatchEvent(new CustomEvent('vizimall-shipping-quote',{detail:{variantId,quote:{status:'temporarily_unavailable'}},bubbles:true}));} });
     }
     const note = element('p', 'delivery-source'); delivery.append(note);
     quantity.addEventListener('change',()=>renderDelivery(lastVariant,originControl.value||undefined));
     originControl.addEventListener('change',()=>renderDelivery(lastVariant,originControl.value));
     const refresh=setInterval(()=>{if(delivery.isConnected&&document.visibilityState==='visible')renderDelivery(lastVariant,originControl.value||undefined);},300000);
-    const cleanup=new MutationObserver(()=>{if(!delivery.isConnected){clearInterval(refresh);quoteController?.abort();discoveryController?.abort();clearTimeout(discoveryTimer);cleanup.disconnect();}});
+    const cleanup=new MutationObserver(()=>{if(!delivery.isConnected){clearInterval(refresh);++requestNumber;++selectionNumber;cleanup.disconnect();}});
     cleanup.observe(document.body,{childList:true});
     renderDelivery();
     return { details, delivery, renderDelivery };
