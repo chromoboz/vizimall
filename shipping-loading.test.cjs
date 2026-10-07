@@ -47,13 +47,13 @@ class Node {
 }
 const tick=()=>new Promise(r=>setImmediate(r));
 function productBoot(fetcher,discovery){
- const f=boot({fetcher:async url=>new URL(url,'https://vizimall.com').searchParams.get('check')==='destinations'?Response.json(discovery?discovery(new URL(url,'https://vizimall.com').searchParams):{status:'complete',destinations:['DE','GR'],expiresAt:Date.now()+6*3600000}):fetcher?fetcher(url):Response.json(quote(new URL(url,'https://vizimall.com').searchParams.get('shipping')))}),nodes=[];
+ const f=boot({fetcher:async url=>new URL(url,'https://vizimall.com').searchParams.get('check')==='destinations'?Response.json(discovery?discovery(new URL(url,'https://vizimall.com').searchParams):{status:'complete',destinations:['DE','GR'],expiresAt:Date.now()+6*3600000}):fetcher?fetcher(url):Response.json(quote(new URL(url,'https://vizimall.com').searchParams.get('shipping')))}),nodes=[],timers=[];
  Object.assign(f.root,{VizimallDestinations:{codes:['DE','GR','US'],valid:code=>['DE','GR','US'].includes(code),name:c=>c},VizimallDelivery:{route:()=>({})},VizimallShipping:{remember:c=>c}});
- Object.assign(f.context,{window:f.root,country:'DE',shippingCountry:'DE',store:'tech',destination:{name:'DE'},storageKey:'',cartInitialized:true,cartReady:Promise.resolve(),cartWrites:Promise.resolve(),loadCart:async()=>{},tr:s=>s,money:p=>p.amount,shippingQuotes:f.client,element:(tag,cls,text)=>{const n=new Node(tag,cls,text);nodes.push(n);return n;},DOMParser:class{parseFromString(){return{body:{childNodes:[]}};}},document:{documentElement:{lang:'de'},body:{},visibilityState:'visible'},CustomEvent:class{constructor(type,options){this.type=type;this.detail=options.detail;}},MutationObserver:class{observe(){}disconnect(){}},setInterval:()=>1,clearInterval:()=>{},setTimeout:()=>1,clearTimeout:()=>{}});
+ Object.assign(f.context,{window:f.root,country:'DE',shippingCountry:'DE',store:'tech',destination:{name:'DE'},storageKey:'',cartInitialized:true,cartReady:Promise.resolve(),cartWrites:Promise.resolve(),loadCart:async()=>{},tr:s=>s,money:p=>p.amount,shippingQuotes:f.client,element:(tag,cls,text)=>{const n=new Node(tag,cls,text);nodes.push(n);return n;},DOMParser:class{parseFromString(){return{body:{childNodes:[]}};}},document:{documentElement:{lang:'de'},body:{},visibilityState:'visible'},CustomEvent:class{constructor(type,options){this.type=type;this.detail=options.detail;}},MutationObserver:class{observe(){}disconnect(){}},setInterval:()=>1,clearInterval:()=>{},setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout:()=>{}});
  const start=source.indexOf('  function productInformation('),end=source.indexOf('  function validLine(');
  vm.runInNewContext(source.slice(start,end),f.context);
  const information=f.context.productInformation({description:''},'tech');
- return{...f,information,nodes,selector:nodes.find(n=>n.attributes['aria-label']==='Product shipping country')};
+ return{...f,information,nodes,timers,selector:nodes.find(n=>n.attributes['aria-label']==='Product shipping country')};
 }
 test('Product opening requests Germany only; other countries load on selection and cache on return',async()=>{
  const f=productBoot();
@@ -99,4 +99,12 @@ test('Selecting an unsupported destination keeps the selector usable and blocks 
  assert.equal(f.information.delivery.events.at(-1).detail.quote.status,'unavailable');
  f.selector.value='DE';await f.selector.listeners.change();await tick();
  assert.equal(f.information.delivery.events.at(-1).detail.quote.destination,'DE');
+});
+
+test('An open incomplete country list refreshes from the prepared cache without CJ scans',async()=>{
+ let reads=0;const f=productBoot(undefined,params=>({status:++reads===1?'discovering':'complete',destinations:reads===1?['DE']:['DE','GR'],expiresAt:Date.now()+60000}));
+ f.information.renderDelivery('gid://shopify/ProductVariant/1');await tick();assert.equal(f.timers.length,1);
+ f.timers[0]();await tick();assert.deepEqual(f.selector.children.map(n=>n.value),['','DE','GR']);
+ assert.equal(f.calls.filter(url=>url.includes('check=destinations')).length,2);assert.ok(f.calls.filter(url=>url.includes('check=destinations')).every(url=>url.includes('cached=1')));
+ assert.equal(f.timers.length,1);
 });

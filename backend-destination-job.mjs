@@ -25,7 +25,7 @@ export function createDestinationJob({production=false,env=process.env,storefron
       for(const job of [...(queue?.items||[])].sort((a,b)=>a.lastRun-b.lastRun)){
         const key='shipping/private/destinations/'+hash(JSON.stringify([job.variantId,job.sku,job.browsing,job.quantity]));
         const state=await db.get(key,{type:'json'});
-        if(state?.expiresAt>Date.now()&&state.checked.length+(state.deferred?.length||0)===globalThis.VizimallDestinations.codes.length)continue;
+        if(state?.expiresAt>Date.now()&&state.checked.length===globalThis.VizimallDestinations.codes.length)continue;
         await update(db,'shipping/private/discovery-queue',old=>({items:(old?.items||[]).map(i=>i.identity===job.identity?{...i,lastRun:Date.now()}:i)}));
         const handler=shippingFactory({dbFactory:async()=>db,env,storefrontConfig,allowUnavailable:true,fetcher:boundedFetch,discoveryBudgetMs:8000});
         const response=await handler(new Request('https://vizimall.com/.netlify/functions/shipping?'+new URLSearchParams({check:'destinations',variant:job.variantId,country:job.browsing,store:job.category,shipping:job.browsing,quantity:String(job.quantity)})));

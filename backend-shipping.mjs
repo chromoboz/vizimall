@@ -1,5 +1,6 @@
 import { store, limit, hash, update } from './backend-persistence.mjs';
 import './shipping-destinations.js';
+import {auditedDestinations} from './backend-destination-audit.mjs';
 import { discoverDestinations, enqueueDestinationDiscovery } from './backend-destinations.mjs';
 import { baselineForSync, cheapestMethod, includedPrice, parseEcbRates, shippingMethods } from './backend-included-pricing.mjs';
 const countries = {DE:'germany',NL:'netherlands',FR:'france',GR:'greece',IT:'italy',PL:'poland',PT:'portugal',ES:'spain'};
@@ -140,7 +141,7 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
         const discoveryKey='shipping/private/destinations/'+hash(JSON.stringify([id,variant.sku,browsing,quantity]));
         const state=await db.get(discoveryKey,{type:'json'});
         const fresh=state?.expiresAt>Date.now();
-        return reply({status:fresh&&state.checked.length+(state.deferred?.length||0)===globalThis.VizimallDestinations.codes.length?'complete':'discovering',destinations:fresh?state.available.filter(c=>globalThis.VizimallDestinations.valid(c)):[],expiresAt:fresh?state.expiresAt:0,retryAfterMs:8000});
+        return reply({status:fresh&&state.checked.length===globalThis.VizimallDestinations.codes.length?'complete':'discovering',destinations:[...new Set([...(fresh?state.available:[]),...auditedDestinations({sku:variant.sku,from:browsing,quantity,state})])].filter(c=>globalThis.VizimallDestinations.valid(c)),expiresAt:fresh?state.expiresAt:Date.now()+60000,retryAfterMs:8000});
       }
       const key='shipping/quotes/v2/'+hash(JSON.stringify([id,variant.sku,destination,browsing,category,requestedOrigin||browsing,quantity,pricing,catalogMetadata]));
       const cached=await db.get(key,{type:'json'});
@@ -171,7 +172,7 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
       if(url.searchParams.get('check')==='destinations'){
         await limit(db,'shipping:discovery:'+(context.ip||'unknown'),20,60000);
         const discoveryKey='shipping/private/destinations/'+hash(JSON.stringify([id,variant.sku,from,quantity]));
-        return reply(await discoverDestinations({db,key:discoveryKey,budgetMs:discoveryBudgetMs,codes:globalThis.VizimallDestinations.codes,priority:[from,destination,'GR','GB','US','FR','NL','IT','ES','PL','PT'],probe:async(code,timeoutMs)=>{
+        return reply(await discoverDestinations({db,key:discoveryKey,budgetMs:discoveryBudgetMs,codes:globalThis.VizimallDestinations.codes,priority:[from,destination,'GR','GB','US','BE','BG','NL','IT','CZ','EE','LT','LU','HR','LV','HU','SI','SK','IE','FR','ES','AT','PL','PT','RO','DK','FI','SE','GB','US'],probe:async(code,timeoutMs)=>{
           await limit(db,'shipping:discovery-freight',60,60000);
           const methods=shippingMethods(await cj('logistic/freightCalculate',access,{startCountryCode:from,endCountryCode:code,products:[{vid:matched.vid,quantity}]},timeoutMs));
           return methods.length>0;

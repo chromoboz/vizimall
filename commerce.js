@@ -154,7 +154,7 @@ function createShippingQuoteClient(root) {
     const selector = element('select'); selector.setAttribute('aria-label', 'Product shipping country');
     const destinationStatus=element('p','delivery-source');
     destinationStatus.setAttribute('role','status');
-    let destinationCodes=new Set(),discoveryIdentity='',discoveryNumber=0,discoveryActive=false;
+    let destinationCodes=new Set(),discoveryIdentity='',discoveryNumber=0,discoveryActive=false,discoveryTimer,discoveryComplete=false;
     function setDestinations(codes) {
       destinationCodes=new Set(codes.filter(code=>window.VizimallDestinations.valid(code)));
       selector.replaceChildren();
@@ -168,7 +168,7 @@ function createShippingQuoteClient(root) {
     setDestinations([]);
     destinationStatus.textContent=tr('Checking available delivery countries…');
     function discoveryStatus() {
-      destinationStatus.textContent=tr('Only confirmed delivery countries are listed.');
+      destinationStatus.textContent=tr(discoveryComplete?'Only confirmed delivery countries are listed.':destinationCodes.size+' delivery countries confirmed. Checking more…');
     }
     async function discover() {
       if(!lastVariant||discoveryActive)return;
@@ -178,14 +178,15 @@ function createShippingQuoteClient(root) {
       try{
         const result=await shippingQuotes.destinations(query);
         if(number!==discoveryNumber||identity!==discoveryIdentity||!delivery.isConnected)return;
-        setDestinations([...destinationCodes,...result.destinations]);
+        setDestinations([...result.destinations,...(destinationCodes.has(shippingCountry)?[shippingCountry]:[])]);
+        discoveryComplete=result.status==='complete';
         discoveryStatus();
       }catch{
         if(number===discoveryNumber&&delivery.isConnected)destinationStatus.textContent=tr('Only confirmed delivery countries are listed.');
-      }finally{if(number===discoveryNumber)discoveryActive=false;}
+      }finally{if(number===discoveryNumber){discoveryActive=false;if(!discoveryComplete&&delivery.isConnected)discoveryTimer=setTimeout(()=>{if(document.visibilityState==='visible'&&document.activeElement!==selector)discover();else discoveryTimer=setTimeout(discover,15000);},15000);}}
     }
     // The scheduled server worker prepares lists. Opening the selector never
-    // starts supplier work or changes the list one country at a time.
+    // starts supplier work. Refresh only the prepared index while it is incomplete.
     let selectionNumber=0;
     selector.addEventListener('change', async () => {
       const selected=selector.value, selection=++selectionNumber;
@@ -219,6 +220,7 @@ function createShippingQuoteClient(root) {
       lastVariant = variantId;
       const identity=variantId+'|'+country+'|'+(from||country)+'|'+quantity.value;
       if(variantId&&identity!==discoveryIdentity){
+        clearTimeout(discoveryTimer);discoveryComplete=false;
         discoveryIdentity=identity;++discoveryNumber;discoveryActive=false;
         const listQuery=new URLSearchParams({variant:variantId,country,store,shipping:shippingCountry,quantity:quantity.value});
         const known=shippingQuotes.readDestinations(listQuery);
@@ -279,7 +281,7 @@ function createShippingQuoteClient(root) {
     quantity.addEventListener('change',()=>renderDelivery(lastVariant,originControl.value||undefined));
     originControl.addEventListener('change',()=>renderDelivery(lastVariant,originControl.value));
     const refresh=setInterval(()=>{if(delivery.isConnected&&document.visibilityState==='visible')renderDelivery(lastVariant,originControl.value||undefined);},300000);
-    const cleanup=new MutationObserver(()=>{if(!delivery.isConnected){clearInterval(refresh);++discoveryNumber;++requestNumber;++selectionNumber;cleanup.disconnect();}});
+    const cleanup=new MutationObserver(()=>{if(!delivery.isConnected){clearInterval(refresh);clearTimeout(discoveryTimer);++discoveryNumber;++requestNumber;++selectionNumber;cleanup.disconnect();}});
     cleanup.observe(document.body,{childList:true});
     renderDelivery();
     return { details, delivery, renderDelivery };

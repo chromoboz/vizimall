@@ -27,8 +27,9 @@ test('Parallel visitors share a lease instead of multiplying CJ scans',async()=>
  const second=await discoverDestinations(args);assert.equal(second.status,'discovering');assert.deepEqual(second.destinations,[]);release();assert.deepEqual((await first).destinations,['DE']);assert.equal(calls.length,1);
 });
 
-test('Persistent supplier failures stay hidden and stop retrying until cache refresh',async()=>{
+test('Supplier failures stay incomplete and recover after a bounded retry delay',async()=>{
  const db=database();let time=100000;const args={db,key:'sku',codes:['DE','US'],now:()=>time,probe:async code=>{if(code==='US')throw Error('supplier unavailable');return true;}};
  let result;for(let i=0;i<3;i++){result=await discoverDestinations(args);time+=31000;}
- assert.equal(result.status,'complete');assert.equal(result.unverified,1);assert.deepEqual(result.destinations,['DE']);
+ assert.equal(result.status,'discovering');assert.equal(result.unverified,1);assert.deepEqual(result.destinations,['DE']);
+ time+=300000;const recovered=await discoverDestinations({...args,probe:async()=>true});assert.equal(recovered.status,'complete');assert.equal(recovered.unverified,0);assert.deepEqual(recovered.destinations,['DE','US']);
 });
