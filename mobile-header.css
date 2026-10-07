@@ -1,0 +1,55 @@
+/* Reserve separate rows for the brand and navigation on narrow screens. */
+@media (max-width: 768px) {
+  body.map-page .topbar, body.mall-page .topbar {
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: 42px 44px;
+    align-items: center;
+    gap: 8px 12px;
+    height: 116px;
+    padding: 10px max(12px, env(safe-area-inset-right)) 12px max(12px, env(safe-area-inset-left));
+  }
+  .topbar .brand { grid-column: 1 / -1; grid-row: 1; justify-self: center; min-width: 0; }
+  body .topbar .account-link {
+    position: static;
+    transform: none;
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: end;
+    box-sizing: border-box;
+    min-width: 44px;
+    min-height: 44px;
+    max-width: 100%;
+    padding: 6px 9px;
+    overflow: hidden;
+  }
+  body .topbar .account-link .profile-short-name {
+    display: block;
+    min-width: 0;
+    max-width: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .topbar .profile-mini { width: 28px; height: 28px; }
+  body .topbar .market-switch, body.map-page .topbar .entry-language {
+    position: static;
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: start;
+    margin: 0;
+    box-sizing: border-box;
+    max-width: 100%;
+    min-width: 0;
+  }
+  body .topbar .market-switch { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 10px; }
+  .topbar .entry-language > span { display: none; }
+  .topbar .entry-language select { box-sizing: border-box; width: 100%; max-width: 100%; min-height: 44px; font-size: 16px; padding: 6px 8px; }
+  body.mall-page .page-shell { top: 116px; }
+  body .topbar.has-shipping-selector { height: 168px; grid-template-rows: 42px 44px 44px; }
+  body .topbar.has-shipping-selector .shipping-selector { position: static; grid-row: 3; grid-column: 1 / -1; min-width: 0; }
+  body.mall-page:has(.has-shipping-selector) .page-shell { top: 168px; }
+  .shop-header { flex-wrap: wrap; }
+  .shop-header .account-link { min-width: 0; max-width: 100%; }
+}

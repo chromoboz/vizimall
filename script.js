@@ -1,396 +1,154 @@
-const viewport = document.getElementById("panoramaViewport");
-const track = document.getElementById("panoramaTrack");
-const image = document.getElementById("panoramaImage");
-const canvas = document.querySelector(".panorama-canvas");
+(() => {
+  const viewport = document.getElementById('panoramaViewport');
+  const track = document.getElementById('panoramaTrack');
+  const canvas = document.querySelector('.panorama-canvas');
+  const image = document.getElementById('panoramaImage');
 
-const progressBar = document.getElementById("progressBar");
-
-const hotspots = document.querySelectorAll(".store-hotspot");
-
-const storeIndicator = document.getElementById("storeIndicator");
-const storeIndicatorText = document.getElementById("storeIndicatorText");
-
-
-let isDragging = false;
-let isFocusing = false;
-
-let startPointerX = 0;
-let startTranslateX = 0;
-let currentX = 0;
-
-let minX = 0;
-let maxX = 0;
-
-let indicatorTimer = null;
-let focusTimer = null;
-
-
-/* =========================
-   HELPERS
-========================= */
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-
-/* =========================
-   PANORAMA POSITION
-========================= */
-
-function setTranslate(x, animate = false) {
-  currentX = clamp(x, minX, maxX);
-
-  if (animate) {
-    track.classList.add("is-focusing");
-  } else {
-    track.classList.remove("is-focusing");
+  const indicator = document.getElementById('storeIndicator');
+  const label = document.getElementById('storeIndicatorText');
+  let x = 0, min = 0, max = 0, pointer = null, dragged = false, timer, entering = false, entryTimer;
+  const clamp = v => Math.max(min, Math.min(max, v));
+  let frame = 0, coast = 0, velocity = 0, friction = 240;
+  let measuredWidth = 0, measuredHeight = 0, measuredCanvasWidth = 0;
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  const lightEntry = matchMedia('(pointer: coarse), (prefers-reduced-motion: reduce)');
+  function stopMotion() {
+    cancelAnimationFrame(frame); cancelAnimationFrame(coast);
+    frame = coast = 0; velocity = 0;
   }
-
-  track.style.transform =
-    `translate3d(${currentX}px, 0, 0)`;
-
-  updateProgress();
-}
-
-
-/* =========================
-   PANORAMA BOUNDS
-========================= */
-
-function updateBounds() {
-  const viewportWidth = viewport.clientWidth;
-  const canvasWidth = canvas.offsetWidth;
-
-  if (!canvasWidth) return;
-
-  maxX = 0;
-  minX = Math.min(0, viewportWidth - canvasWidth);
-
-  if (canvasWidth <= viewportWidth) {
-    const centered =
-      (viewportWidth - canvasWidth) / 2;
-
-    minX = centered;
-    maxX = centered;
+  function paint() {
+    frame = 0;
+    track.style.transform = `translate3d(${x}px,0,0)`;
   }
-
-  currentX = clamp(currentX, minX, maxX);
-
-  setTranslate(currentX, false);
-}
-
-
-/* =========================
-   PROGRESS BAR
-========================= */
-
-function updateProgress() {
-  const totalScrollable = Math.abs(minX);
-
-  if (totalScrollable <= 0) {
-    progressBar.style.width = "100%";
-    return;
-  }
-
-  const progress =
-    Math.abs(currentX) / totalScrollable;
-
-  const percent =
-    20 + progress * 80;
-
-  progressBar.style.width =
-    `${percent}%`;
-}
-
-
-/* =========================
-   STORE LABEL
-========================= */
-
-function showStoreName(storeName) {
-  clearTimeout(indicatorTimer);
-
-  if (storeName === "UPSTAIRS") {
-    storeIndicatorText.textContent =
-      "UPSTAIRS · COMING SOON";
-  } else {
-    storeIndicatorText.textContent =
-      storeName;
-  }
-
-  storeIndicator.classList.add("show");
-
-  indicatorTimer = setTimeout(() => {
-    storeIndicator.classList.remove("show");
-  }, 2200);
-}
-
-
-/* =========================
-   FOCUS STORE
-========================= */
-
-function focusStore(hotspot) {
-  if (isFocusing) return;
-
-  isFocusing = true;
-
-  clearTimeout(focusTimer);
-
-  const hotspotCenter =
-    hotspot.offsetLeft +
-    hotspot.offsetWidth / 2;
-
-  const viewportCenter =
-    viewport.clientWidth / 2;
-
-  const targetX =
-    viewportCenter - hotspotCenter;
-
-  const finalX =
-    clamp(targetX, minX, maxX);
-
-  const canvasWidth =
-    canvas.offsetWidth;
-
-  const originPercent =
-    (hotspotCenter / canvasWidth) * 100;
-
-
-  canvas.style.transformOrigin =
-    `${originPercent}% 50%`;
-
-
-  setTranslate(finalX, true);
-
-
-  requestAnimationFrame(() => {
-    canvas.classList.add("is-zoomed");
-  });
-
-
-  setTimeout(() => {
-    showStoreName(
-      hotspot.dataset.store
-    );
-  }, 250);
-
-
-  focusTimer = setTimeout(() => {
-    canvas.classList.remove("is-zoomed");
-
-    setTimeout(() => {
-      track.classList.remove("is-focusing");
-      isFocusing = false;
-    }, 650);
-
-  }, 1400);
-}
-
-
-/* =========================
-   MOUSE DRAG
-========================= */
-
-viewport.addEventListener("mousedown", (event) => {
-  if (isFocusing) return;
-
-  isDragging = true;
-
-  startPointerX = event.clientX;
-  startTranslateX = currentX;
-
-  viewport.classList.add("is-dragging");
-});
-
-
-window.addEventListener("mousemove", (event) => {
-  if (!isDragging) return;
-  if (isFocusing) return;
-
-  const delta =
-    event.clientX - startPointerX;
-
-  setTranslate(
-    startTranslateX + delta,
-    false
-  );
-});
-
-
-window.addEventListener("mouseup", () => {
-  isDragging = false;
-
-  viewport.classList.remove("is-dragging");
-});
-
-
-viewport.addEventListener("mouseleave", () => {
-  if (!isDragging) return;
-
-  isDragging = false;
-
-  viewport.classList.remove("is-dragging");
-});
-
-
-/* =========================
-   TOUCH DRAG
-========================= */
-
-viewport.addEventListener(
-  "touchstart",
-  (event) => {
-
-    if (isFocusing) return;
-    if (event.touches.length !== 1) return;
-
-    isDragging = true;
-
-    startPointerX =
-      event.touches[0].clientX;
-
-    startTranslateX =
-      currentX;
-
-    viewport.classList.add("is-dragging");
-  },
-  {
-    passive: true
-  }
-);
-
-
-viewport.addEventListener(
-  "touchmove",
-  (event) => {
-
-    if (!isDragging) return;
-    if (isFocusing) return;
-    if (event.touches.length !== 1) return;
-
-    event.preventDefault();
-
-    const delta =
-      event.touches[0].clientX -
-      startPointerX;
-
-    setTranslate(
-      startTranslateX + delta,
-      false
-    );
-  },
-  {
-    passive: false
-  }
-);
-
-
-viewport.addEventListener(
-  "touchend",
-  () => {
-
-    isDragging = false;
-
-    viewport.classList.remove("is-dragging");
-  },
-  {
-    passive: true
-  }
-);
-
-
-/* =========================
-   HOTSPOT CLICK / TAP
-========================= */
-
-hotspots.forEach((hotspot) => {
-
-  let pressX = 0;
-  let pressY = 0;
-
-
-  hotspot.addEventListener(
-    "pointerdown",
-    (event) => {
-
-      pressX = event.clientX;
-      pressY = event.clientY;
+  function glide() {
+    let previous = performance.now();
+    function tick(now) {
+      const dt = Math.min(64, now - previous); previous = now;
+      const decay = Math.exp(-dt / friction);
+      const next = clamp(x + velocity * friction * (1 - decay));
+      const atEdge = next === x;
+      x = next; paint();
+      velocity *= decay;
+      if (!atEdge && Math.abs(velocity) > .025 && !entering) coast = requestAnimationFrame(tick);
+      else {coast = 0; velocity = 0;}
     }
-  );
-
-
-  hotspot.addEventListener(
-    "pointerup",
-    (event) => {
-
-      const moveX =
-        Math.abs(
-          event.clientX - pressX
-        );
-
-      const moveY =
-        Math.abs(
-          event.clientY - pressY
-        );
-
-
-      /*
-        Eğer kullanıcı sürüklediyse
-        mağazaya tıklama sayma
-      */
-
-      if (
-        moveX > 12 ||
-        moveY > 12
-      ) {
+    coast = requestAnimationFrame(tick);
+  }
+  function move(value) {
+    x = clamp(value);
+    if (!frame) frame = requestAnimationFrame(paint);
+  }
+  function bounds(initial = false) {
+    if (entering) return;
+    const viewWidth = viewport.clientWidth, viewHeight = viewport.clientHeight;
+    const width = canvas.offsetWidth;
+    // Ignore observer notifications that do not change the scene geometry.
+    if (!initial && viewWidth === measuredWidth && viewHeight === measuredHeight && width === measuredCanvasWidth) return;
+    measuredWidth = viewWidth; measuredHeight = viewHeight; measuredCanvasWidth = width;
+    stopMotion();
+    const ratio = max === min ? .15 : (max-x)/(max-min);
+    canvas.style.setProperty("--scene-unit", `${canvas.offsetHeight/730}px`);
+    if (entering) return;
+    if (!width) return;
+    min = Math.min(0, viewport.clientWidth-width); max = 0;
+    if (width < viewport.clientWidth) min = max = (viewport.clientWidth-width)/2;
+    let saved = null;
+    try { saved = sessionStorage.getItem('vizimall-position'); } catch {}
+    const fraction = initial && saved !== null ? Number(saved) : ratio;
+    move(max - (max-min) * (Number.isFinite(fraction) ? fraction : .15));
+  }
+  viewport.addEventListener('pointerdown', e => {
+    if (entering || !e.isPrimary || e.button !== 0) return;
+    stopMotion();
+    // Prevent native button focus from panning the clipped viewport during a drag.
+    if(e.pointerType!=='touch')e.preventDefault();
+    dragged = false;
+    friction = e.pointerType === "touch" ? 420 : 240;
+    pointer = {id:e.pointerId, start:e.clientX, startY:e.clientY, x, lastX:e.clientX, lastTime:performance.now()};
+  });
+  window.addEventListener('pointermove', e => {
+    if (!pointer || pointer.id !== e.pointerId) return;
+    const delta = e.clientX-pointer.start;
+    const vertical=e.clientY-pointer.startY;
+    if(!dragged&&Math.abs(vertical)>8&&Math.abs(vertical)>Math.abs(delta)){pointer=null;return;}
+    if (!dragged && Math.abs(delta)>8) {
+      dragged = true;
+      viewport.setPointerCapture(e.pointerId);
+      viewport.classList.add('is-dragging');
+    }
+    if (dragged) {
+      const now = performance.now();
+      const dt = Math.max(1, now - pointer.lastTime);
+      const sample = Math.max(-2.5, Math.min(2.5, (e.clientX-pointer.lastX)/dt));
+      velocity = velocity*.35 + sample*.65;
+      pointer.lastX = e.clientX; pointer.lastTime = now;
+      move(pointer.x+delta);
+    }
+  });
+  function end(e) {
+    if (!pointer || (e && e.pointerId !== pointer.id)) return;
+    const shouldGlide = e && e.type === 'pointerup' && dragged && performance.now()-pointer.lastTime < 100 && !reducedMotion.matches;
+    const id = pointer.id; pointer = null;
+    viewport.classList.remove('is-dragging');
+    if (viewport.hasPointerCapture(id)) viewport.releasePointerCapture(id);
+    if (shouldGlide) glide(); else velocity = 0;
+  }
+  window.addEventListener('pointerup', end);
+  window.addEventListener('pointercancel', end);
+  // Touch starts with implicit capture on the tapped storefront button.
+  // Its capture-loss event bubbles when capture moves to the viewport.
+  viewport.addEventListener('lostpointercapture', e => {
+    if (e.target === viewport && !viewport.hasPointerCapture(e.pointerId)) end(e);
+  });
+  window.addEventListener('blur', () => {end();stopMotion();});
+  document.addEventListener('visibilitychange', () => { if (document.hidden) {end();stopMotion();} });
+  window.addEventListener('pagehide', () => {end();stopMotion();clearTimeout(timer);clearTimeout(entryTimer);});
+  viewport.addEventListener('dragstart', e => e.preventDefault());
+  viewport.addEventListener('click', e => {
+    if (dragged && e.detail !== 0) {e.preventDefault(); return;}
+    const button = e.target.closest('.store-hotspot');
+    if (!button) return;
+    if (button.dataset.href) {
+      try {sessionStorage.setItem('vizimall-position', String(max === min ? 0 : (max-x)/(max-min)));} catch {}
+      if (entering) return;
+      stopMotion();
+      entering = true;
+      if (lightEntry.matches) {
+        location.href = button.dataset.href;
         return;
       }
-
-
-      event.preventDefault();
-      event.stopPropagation();
-
-
-      focusStore(hotspot);
+      const cx = button.offsetLeft + button.offsetWidth/2;
+      const cy = button.offsetTop + button.offsetHeight/2;
+      const scale = Math.max(1.65, viewport.clientWidth/(button.offsetWidth*1.1), viewport.clientHeight/(button.offsetHeight*.95));
+      canvas.style.transformOrigin = `${cx}px ${cy}px`;
+      // Commit the initial transform before starting the cinematic entry.
+      canvas.getBoundingClientRect();
+      document.body.classList.add('is-entering');
+      track.style.transform = `translate3d(${viewport.clientWidth/2-cx}px,0,0)`;
+      canvas.style.transform = `translateY(${viewport.clientHeight/2-canvas.offsetTop-cy}px) scale(${scale})`;
+      const delay = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1180;
+      entryTimer = setTimeout(() => {location.href = button.dataset.href;}, delay);
+    } else {
+      clearTimeout(timer);
+      label.textContent = 'EXPLORE THE STORES ON THIS FLOOR';
+      indicator.classList.add('show');
+      timer = setTimeout(() => indicator.classList.remove('show'), 2500);
     }
-  );
-
-});
-
-
-/* =========================
-   IMAGE LOAD
-========================= */
-
-function initialisePanorama() {
-  updateBounds();
-
-  if (minX < 0) {
-    const initialX =
-      minX * 0.15;
-
-    setTranslate(
-      initialX,
-      false
-    );
-  }
-}
-
-
-image.addEventListener(
-  "load",
-  initialisePanorama
-);
-
-
-window.addEventListener(
-  "resize",
-  updateBounds
-);
-
-
-if (image.complete) {
-  initialisePanorama();
-}
+  });
+  viewport.addEventListener('wheel', e => {if(entering || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return; e.preventDefault(); stopMotion(); move(x-e.deltaX*(e.deltaMode===1?16:1));}, {passive:false});
+  viewport.addEventListener('keydown', e => {
+    if (entering) return;
+    if (!['ArrowLeft','ArrowRight','Home','End'].includes(e.key)) return;
+    e.preventDefault();
+    stopMotion();
+    move(e.key === 'Home' ? max : e.key === 'End' ? min : x + (e.key === 'ArrowLeft' ? 1 : -1)*viewport.clientWidth*.3);
+  });
+  viewport.addEventListener('focusin', e => {
+    if (!entering && e.target.matches('.store-hotspot')) {stopMotion(); viewport.scrollLeft=0; move(viewport.clientWidth/2-e.target.offsetLeft-e.target.offsetWidth/2);}
+  });
+  window.addEventListener('pageshow', () => {clearTimeout(entryTimer); entering=false; document.body.classList.remove('is-entering'); canvas.style.transform=''; bounds(true);});
+  image.addEventListener('load', () => bounds(true));
+  image.addEventListener('error', () => {label.textContent='The panorama could not load. Please refresh.';indicator.classList.add('show');});
+  new ResizeObserver(() => bounds()).observe(viewport);
+  if (image.complete && image.naturalWidth) bounds(true);
+})();
