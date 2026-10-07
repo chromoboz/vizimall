@@ -1,6 +1,6 @@
 {
   "name": "vizimall",
   "private": true,
-  "scripts": { "build": "node build.mjs", "test": "node --test profile.test.mjs audience.test.mjs customer.test.mjs storefront-api.test.cjs shipping-country.test.cjs shipping-backend.test.mjs shipping-loading.test.cjs product-delivery.test.cjs included-pricing.test.mjs price-sync.test.mjs pricing-job.test.mjs context-pricing.test.mjs locale.test.cjs" },
+  "scripts": { "build": "node build.mjs", "test": "node --test profile.test.mjs audience.test.mjs customer.test.mjs storefront-api.test.cjs shipping-country.test.cjs shipping-backend.test.mjs shipping-loading.test.cjs destinations.test.mjs destination-job.test.mjs product-delivery.test.cjs included-pricing.test.mjs price-sync.test.mjs pricing-job.test.mjs context-pricing.test.mjs locale.test.cjs" },
   "dependencies": { "@netlify/blobs": "^10.0.0", "jose": "^6.0.0", "sharp": "^0.34.0" }
 }

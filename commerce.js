@@ -1,10 +1,12 @@
 // Cache presentation data separately from short-lived checkout confirmation.
 function createShippingQuoteClient(root) {
   const pending=new Map(), memory=new Map(), ttl=6*60*60*1000;
+  const countryLists=new Map();
   function keyFor(query) {
     const normalized=new URLSearchParams(query);
     normalized.set('from',normalized.get('from')||normalized.get('country'));
     normalized.set('quantity',normalized.get('quantity')||'1');
+    if(normalized.get('check')==='destinations')normalized.delete('shipping');
     normalized.sort();
     return 'vizimall-shipping-v2:'+root.VIZIMALL_SHOPIFY.domain+':'+normalized;
   }
@@ -41,18 +43,30 @@ function createShippingQuoteClient(root) {
   }
   function destinations(query,refresh=false) {
     const params=new URLSearchParams(query);params.set('check','destinations');
-    if(!refresh)params.set('cached','1');
+    params.set('cached','1'); // Visitors never start the slow supplier scan.
     const key=keyFor(params);
     if(pending.has(key))return pending.get(key);
     const task=(async()=>{
       const response=await root.fetch('/.netlify/functions/shipping?'+params,{credentials:'same-origin',signal:AbortSignal.timeout(45000)});
       const result=await response.json();
       if(!response.ok||!Array.isArray(result.destinations))throw Error('Destination check unavailable');
+      if(result.expiresAt>Date.now()){
+        countryLists.set(key,result);
+        try{root.localStorage.setItem(key,JSON.stringify(result));}catch{}
+      }else{countryLists.delete(key);try{root.localStorage.removeItem(key);}catch{}}
       return result;
     })().finally(()=>pending.delete(key));
     pending.set(key,task);return task;
   }
-  return {get,read,destinations};
+  function readDestinations(query) {
+    const params=new URLSearchParams(query);params.set('check','destinations');params.set('cached','1');
+    const key=keyFor(params);
+    try{
+      const result=countryLists.get(key)||JSON.parse(root.localStorage.getItem(key));
+      return result?.expiresAt>Date.now()&&Array.isArray(result.destinations)?result:null;
+    }catch{return null;}
+  }
+  return {get,read,destinations,readDestinations};
 }
 (() => {
   'use strict';
@@ -140,7 +154,7 @@ function createShippingQuoteClient(root) {
     const selector = element('select'); selector.setAttribute('aria-label', 'Product shipping country');
     const destinationStatus=element('p','delivery-source');
     destinationStatus.setAttribute('role','status');
-    let destinationCodes=new Set(),discoveryIdentity='',discoveryNumber=0,discoveryTimer,discoveryActive=false,discoveryComplete=false;
+    let destinationCodes=new Set(),discoveryIdentity='',discoveryNumber=0,discoveryActive=false;
     function setDestinations(codes) {
       destinationCodes=new Set(codes.filter(code=>window.VizimallDestinations.valid(code)));
       selector.replaceChildren();
@@ -154,28 +168,24 @@ function createShippingQuoteClient(root) {
     setDestinations([]);
     destinationStatus.textContent=tr('Checking available delivery countries…');
     function discoveryStatus() {
-      destinationStatus.textContent=tr(discoveryComplete?'Only confirmed delivery countries are listed.':'{count} delivery countries confirmed. Checking more…',{count:destinationCodes.size});
+      destinationStatus.textContent=tr('Only confirmed delivery countries are listed.');
     }
-    async function discover(refresh=false) {
-      if(!lastVariant||discoveryActive||(refresh&&discoveryComplete))return;
+    async function discover() {
+      if(!lastVariant||discoveryActive)return;
       const identity=discoveryIdentity,number=discoveryNumber;
       const query=new URLSearchParams({variant:lastVariant,country,store,shipping:shippingCountry,quantity:quantity.value});
       discoveryActive=true;
       try{
-        const result=await shippingQuotes.destinations(query,refresh);
+        const result=await shippingQuotes.destinations(query);
         if(number!==discoveryNumber||identity!==discoveryIdentity||!delivery.isConnected)return;
         setDestinations([...destinationCodes,...result.destinations]);
-        discoveryComplete=result.status==='complete';
         discoveryStatus();
-        if(refresh&&!discoveryComplete)discoveryTimer=setTimeout(()=>{if(delivery.isConnected&&document.visibilityState==='visible')discover(true);},Math.max(8000,result.retryAfterMs||8000));
       }catch{
         if(number===discoveryNumber&&delivery.isConnected)destinationStatus.textContent=tr('Only confirmed delivery countries are listed.');
       }finally{if(number===discoveryNumber)discoveryActive=false;}
     }
-    // Opening a product only reads existing confirmations. Supplier discovery
-    // starts when the customer interacts with the country control.
-    selector.addEventListener('focus',()=>discover(true));
-    selector.addEventListener('pointerdown',()=>discover(true));
+    // The scheduled server worker prepares lists. Opening the selector never
+    // starts supplier work or changes the list one country at a time.
     let selectionNumber=0;
     selector.addEventListener('change', async () => {
       const selected=selector.value, selection=++selectionNumber;
@@ -209,8 +219,10 @@ function createShippingQuoteClient(root) {
       lastVariant = variantId;
       const identity=variantId+'|'+country+'|'+(from||country)+'|'+quantity.value;
       if(variantId&&identity!==discoveryIdentity){
-        discoveryIdentity=identity;++discoveryNumber;discoveryActive=false;discoveryComplete=false;
-        clearTimeout(discoveryTimer);setDestinations([]);discover();
+        discoveryIdentity=identity;++discoveryNumber;discoveryActive=false;
+        const listQuery=new URLSearchParams({variant:variantId,country,store,shipping:shippingCountry,quantity:quantity.value});
+        const known=shippingQuotes.readDestinations(listQuery);
+        setDestinations(known?.destinations||[]);discover();
       }
       delivery.dispatchEvent(new CustomEvent('vizimall-shipping-quote',{detail:{variantId,quote:null},bubbles:true}));
       const requestId = ++requestNumber;
@@ -267,7 +279,7 @@ function createShippingQuoteClient(root) {
     quantity.addEventListener('change',()=>renderDelivery(lastVariant,originControl.value||undefined));
     originControl.addEventListener('change',()=>renderDelivery(lastVariant,originControl.value));
     const refresh=setInterval(()=>{if(delivery.isConnected&&document.visibilityState==='visible')renderDelivery(lastVariant,originControl.value||undefined);},300000);
-    const cleanup=new MutationObserver(()=>{if(!delivery.isConnected){clearInterval(refresh);clearTimeout(discoveryTimer);++discoveryNumber;++requestNumber;++selectionNumber;cleanup.disconnect();}});
+    const cleanup=new MutationObserver(()=>{if(!delivery.isConnected){clearInterval(refresh);++discoveryNumber;++requestNumber;++selectionNumber;cleanup.disconnect();}});
     cleanup.observe(document.body,{childList:true});
     renderDelivery();
     return { details, delivery, renderDelivery };

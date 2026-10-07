@@ -17,6 +17,8 @@ for (const file of ['backend-rules.mjs', 'backend-persistence.mjs', 'backend-rev
 const handler = (await readFile('backend-customer.mjs', 'utf8')).replaceAll("from './backend-", "from '../lib/backend-");
 await writeFile('.generated/functions/customer.mjs', handler);
 const productionRetention = process.env.CONTEXT === 'production';
+await copyFile('backend-destination-job.mjs','.generated/lib/backend-destination-job.mjs');
+await writeFile('.generated/functions/shipping-countries.mjs', `import {createDestinationJob} from '../lib/backend-destination-job.mjs';\nconst window = {};\n${storefrontConfiguration}\nexport default createDestinationJob({production:${productionRetention},storefrontConfig:window.VIZIMALL_SHOPIFY});\nexport const config = {schedule:'* * * * *'};\n`);
 await writeFile('.generated/functions/pricing-sync.mjs', `import { createContextPricingJob } from '../lib/backend-context-job.mjs';\nconst window = {};\n${storefrontConfiguration}\nexport default createContextPricingJob({production:${productionRetention},storefrontConfig:window.VIZIMALL_SHOPIFY});\nexport const config = {schedule:'*/2 * * * *'};\n`);
 await writeFile('.generated/functions/retention.mjs', `import { store } from '../lib/backend-persistence.mjs';
 import { purgeAudience } from '../lib/backend-audience.mjs';

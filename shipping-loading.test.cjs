@@ -66,15 +66,20 @@ test('Product opening requests Germany only; other countries load on selection a
  f.selector.value='DE';await f.selector.listeners.change();await tick();assert.equal(f.calls.length,3);
  assert.equal(f.information.delivery.attributes['aria-busy'],'false');
 });
-test('Unconfirmed countries stay hidden; supplier discovery starts only after country-control interaction',async()=>{
+test('Country-control interaction never starts a supplier scan; only cached confirmations are listed',async()=>{
  const f=productBoot(undefined,params=>({status:params.has('cached')?'discovering':'complete',destinations:params.has('cached')?['DE']:['DE','GR'],expiresAt:Date.now()+6*3600000}));
  f.information.renderDelivery('gid://shopify/ProductVariant/1');await tick();
  assert.deepEqual(f.selector.children.map(n=>n.value),['','DE']);
  assert.equal(f.calls.length,2);
- await f.selector.listeners.focus();await tick();
- assert.equal(f.calls.length,3);assert.ok(!f.calls[2].includes('cached=1'));
- assert.deepEqual(f.selector.children.map(n=>n.value),['','DE','GR']);
- await f.selector.listeners.pointerdown();assert.equal(f.calls.length,3);
+ assert.equal(f.selector.listeners.focus,undefined);assert.equal(f.selector.listeners.pointerdown,undefined);
+ assert.equal(f.calls.length,2);
+ assert.deepEqual(f.selector.children.map(n=>n.value),['','DE']);
+});
+test('Confirmed lists are available synchronously after a reload, and expired lists are discarded',async()=>{
+ const f=boot({fetcher:async()=>Response.json({status:'complete',destinations:['DE','GR'],expiresAt:Date.now()+6*3600000})});
+ await f.client.destinations(query());
+ const next=boot({saved:f.saved});assert.equal(next.client.readDestinations(query()).destinations.length,2);
+ next.advance(6*3600000+1);assert.equal(next.client.readDestinations(query()),null);
 });
 test('A late previous-country response cannot overwrite the current shipping price',async()=>{
  const resolvers={};const f=productBoot(url=>new Promise(resolve=>{resolvers[new URL(url,'https://vizimall.com').searchParams.get('shipping')]=resolve;}));

@@ -1,4 +1,19 @@
-import {update,random} from './backend-persistence.mjs';
+import {update,random,hash} from './backend-persistence.mjs';
+export async function enqueueDestinationDiscovery(db,job) {
+ return enqueueDestinationDiscoveries(db,[job]);
+}
+export async function enqueueDestinationDiscoveries(db,jobs) {
+ await update(db,'shipping/private/discovery-queue',old=>{
+  const items=(old?.items||[]).filter(i=>i.requestedAt>Date.now()-7*86400000).map(i=>({...i}));
+  for(const job of jobs){
+   const identity=hash(JSON.stringify([job.variantId,job.sku,job.browsing,job.quantity||1]));
+   const existing=items.find(i=>i.identity===identity);
+   if(existing)existing.requestedAt=Date.now();
+   else items.push({...job,quantity:job.quantity||1,identity,requestedAt:Date.now(),lastRun:0});
+  }
+  return {items:items.slice(-2000)};
+ });
+}
 // Only successful freight quotes populate the public product destination list.
 // Work is bounded and shared between visitors; transient failures stay pending.
 export async function discoverDestinations({db,key,codes,priority=[],probe,now=()=>Date.now(),batchSize=12,budgetMs=14000}){
