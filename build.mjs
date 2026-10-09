@@ -9,6 +9,7 @@ await copyFile('map-attribution.txt', 'dist/map-attribution.txt');
 await mkdir('.generated/functions', { recursive: true });
 await mkdir('.generated/lib', { recursive: true });
 await copyFile('backend-shipping.mjs', '.generated/lib/backend-shipping.mjs');
+await copyFile('backend-autods-shipping.mjs', '.generated/lib/backend-autods-shipping.mjs');
 await copyFile('shipping-audit-catalog.mjs', '.generated/lib/shipping-audit-catalog.mjs');
 for (const file of ['backend-included-pricing.mjs', 'backend-price-sync.mjs', 'backend-pricing-job.mjs','backend-context-pricing.mjs','backend-context-job.mjs','backend-destinations.mjs','backend-destination-audit.mjs','shipping-destinations.js']) await copyFile(file, `.generated/lib/${file}`);
 const storefrontConfiguration = await readFile('shopify-config.js', 'utf8');

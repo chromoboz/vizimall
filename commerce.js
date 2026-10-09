@@ -266,9 +266,11 @@ function createShippingQuoteClient(root) {
           const method=quote.methods[Number(methodControl.value)]; if(!method)return;
           table.replaceChildren();
           const rows=[['Processing time',quote.processingHours?'Ships within '+quote.processingHours+' hours':route.processing||'Not provided by supplier'],['Estimated transport',method.transport+' days; preparation is additional'],['Warehouse stock',Number.isSafeInteger(quote.stockQuantity)?quote.stockQuantity.toLocaleString(document.documentElement.lang)+' remaining in '+window.VizimallDestinations.name(quote.from):'Not provided'],['Last checked',new Date(quote.stockCheckedAt||quote.checkedAt).toLocaleString(document.documentElement.lang)]];
+          if(quote.supplier==='autods')rows.splice(0,3,['Estimated delivery',tr('{days} business days including processing',{days:quote.totalDelivery.days})],['Availability',tr('{count} available',{count:quote.stockQuantity})]);
           if(quote.pricing)rows.push(['Price including standard shipping per item',money(quote.pricing.unitPrice)],[tr('Total for {count} item(s)',{count:quote.quantity}),money(quote.pricing.lineTotal)]);
           for(const [label,value] of rows)table.append(element('dt','',label),element('dd','',value));
           note.textContent=tr(quote.pricing?.checkoutReady?'Standard shipping is included per item.':'The final price is being confirmed. Please wait before adding to your bag.')+' '+tr('Delivery estimates are not guaranteed. Preparation and transport are separate.');
+          if(quote.supplier==='autods')note.textContent=tr('Standard shipping is included per item.')+' '+tr('Delivery estimates are not guaranteed.');
           delivery.dispatchEvent(new CustomEvent('vizimall-shipping-quote',{detail:{variantId,quote},bubbles:true}));
         }
         methodControl.onchange=showQuote;showQuote();
@@ -580,7 +582,7 @@ function createShippingQuoteClient(root) {
         const quote=currentShippingQuote;
         if(!quote)price.textContent='Checking destination price…';
         if(quote?.pricing)price.textContent=money(quote.pricing.unitPrice)+' · standard shipping included';
-        if(Number.isSafeInteger(quote?.stockQuantity))stockStatus.textContent=quote.stockQuantity.toLocaleString(document.documentElement.lang)+' remaining in '+window.VizimallDestinations.name(quote.from);
+        if(Number.isSafeInteger(quote?.stockQuantity))stockStatus.textContent=quote.supplier==='autods'?tr('{count} available',{count:quote.stockQuantity}):quote.stockQuantity.toLocaleString(document.documentElement.lang)+' remaining in '+window.VizimallDestinations.name(quote.from);
         add.disabled=!quote?.pricing?.checkoutReady;
         add.textContent=quote?.pricing?.checkoutReady?'Add to bag':quote?.status==='available'?'Checkout price pending':quote?'Shipping unavailable':'Checking shipping…';
       });

@@ -3,13 +3,15 @@ import './shipping-destinations.js';
 import {auditedDestinations} from './backend-destination-audit.mjs';
 import { discoverDestinations, enqueueDestinationDiscovery } from './backend-destinations.mjs';
 import { baselineForSync, cheapestMethod, includedPrice, parseEcbRates, shippingMethods } from './backend-included-pricing.mjs';
+import {createAutoDSQuote} from './backend-autods-shipping.mjs';
 const countries = {DE:'germany',NL:'netherlands',FR:'france',GR:'greece',IT:'italy',PL:'poland',PT:'portugal',ES:'spain'};
 const stores = ['tech','home','pets','beauty','fashion','kids','auto'];
 const cjBase = 'https://developers.cjdropshipping.com/api2.0/v1/';
 const cacheMs = 300000;
 const quoteCacheMs = 6 * 60 * 60 * 1000;
-export function createShippingHandler({dbFactory=store, fetcher=fetch, env=process.env, storefrontConfig, probeSku='CJQT25986940004',probeSkus=[],pricing=false,catalogMetadata=false,allowUnavailable=false,supplierPacingMs=1100,discoveryBudgetMs=14000}={}) {
+export function createShippingHandler({dbFactory=store, fetcher=fetch, env=process.env, storefrontConfig, probeSku='CJQT25986940004',probeSkus=[],pricing=false,catalogMetadata=false,allowUnavailable=false,supplierPacingMs=1100,discoveryBudgetMs=14000,autodsAdminFactory}={}) {
   let tokenPending, supplierDb;
+  const autodsQuote=createAutoDSQuote({storefrontConfig,env,fetcher,adminFactory:autodsAdminFactory});
   async function cj(path, token, body, timeoutMs=12000) {
     // CJ free accounts allow one call per second. Share the slot across functions.
     if(supplierDb&&supplierPacingMs>0){
@@ -72,7 +74,7 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
   }
   async function product(id, country) {
     const settings=storefrontConfig;
-    const response=await fetcher(`https://${settings.domain}/api/${settings.apiVersion}/graphql.json`,{method:'POST',redirect:'error',signal:AbortSignal.timeout(10000),headers:{'Content-Type':'application/json','X-Shopify-Storefront-Access-Token':settings.publicToken},body:JSON.stringify({query:`query($id:ID!,$country:CountryCode!) @inContext(country:$country){node(id:$id){... on ProductVariant{id sku availableForSale price{amount currencyCode} product{id tags}}}}`,variables:{id,country}})});
+    const response=await fetcher(`https://${settings.domain}/api/${settings.apiVersion}/graphql.json`,{method:'POST',redirect:'error',signal:AbortSignal.timeout(10000),headers:{'Content-Type':'application/json','X-Shopify-Storefront-Access-Token':settings.publicToken},body:JSON.stringify({query:`query($id:ID!,$country:CountryCode!) @inContext(country:$country){node(id:$id){... on ProductVariant{id sku availableForSale quantityAvailable price{amount currencyCode} product{id tags}}}}`,variables:{id,country}})});
     const body=await response.json();if(!response.ok||body.errors||!body.data?.node)throw new Error('Product unavailable');
     return body.data.node;
   }
@@ -80,7 +82,7 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
   async function handler(req,context={}) {
     const reply=(data,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
     if(req.method!=='GET')return reply({error:'Method not allowed'},405);
-    if(!env.CJ_API_KEY)return reply({status:'not_connected',methods:[]});
+    if(!env.CJ_API_KEY&&!env.SHOPIFY_ADMIN_CLIENT_ID&&!autodsAdminFactory)return reply({status:'not_connected',methods:[]});
     try {
       const url=new URL(req.url);
       // Fixed, public CJ catalog SKU for an end-to-end supplier smoke check.
@@ -135,7 +137,8 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
       // Recheck current Shopify eligibility before returning even a cached quote.
       const variant=await product(id,browsing);
       if((!variant.availableForSale&&!allowUnavailable&&url.searchParams.get('check')!=='destinations')||![`country-${countries[browsing]}`,`store-${category}`].every(tag=>variant.product.tags.includes(tag)))return reply({status:'unavailable',methods:[]});
-      if(!/^CJ[A-Za-z0-9 _-]{3,190}$/.test(variant.sku||''))return reply({status:'not_mapped',methods:[]});
+      if(!/^CJ[A-Za-z0-9 _-]{3,190}$/.test(variant.sku||''))return reply(await autodsQuote({variant,browsing,destination,category,quantity,discovery:url.searchParams.get('check')==='destinations'}));
+      if(!env.CJ_API_KEY)return reply({status:'not_connected',methods:[]});
       if(url.searchParams.get('check')==='destinations'&&url.searchParams.get('cached')==='1'){
         await enqueueDestinationDiscovery(db,{variantId:id,sku:variant.sku,browsing,category,quantity});
         const discoveryKey='shipping/private/destinations/'+hash(JSON.stringify([id,variant.sku,browsing,quantity]));
