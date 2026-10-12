@@ -1,7 +1,7 @@
 import {launchDestinations} from './backend-cj-catalog.mjs';
 const readyName='VIZIMALL CJ — 8 destinations included';
 const holdName='VIZIMALL CJ — pending verification';
-function result(data,key){const r=data?.[key];if(!r||r.userErrors?.length)throw Error('CJ shared shipping profile was not confirmed');return r;}
+function result(data,key){const r=data?.[key];if(!r||r.userErrors?.length){const error=Error('CJ shared shipping profile was not confirmed');error.adminErrors=(r?.userErrors||[]).slice(0,3).map(e=>({message:String(e.message||'').slice(0,300),field:e.field}));throw error;}return r;}
 function zeroZone(destination){return {name:'CJ confirmed '+destination,countries:[{code:destination,includeAllProvinces:true}],methodDefinitionsToCreate:[{name:'Standard shipping included',active:true,rateDefinition:{price:{amount:'0.00',currencyCode:'EUR'}}}]};}
 function verifiedProfile(p,locationId){
   const gs=p?.profileLocationGroups;

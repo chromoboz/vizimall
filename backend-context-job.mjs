@@ -54,6 +54,7 @@ export function createContextPricingJob({production=false,storefrontConfig,env=p
       if(mainCatalogContext(fresh.node.product)){
         const holdKey='shipping/private/cj-held/'+fresh.node.product.id.split('/').at(-1);
         if(!await db.get(holdKey,{type:'json'})){
+          report.stage='holding_product';
           if(fresh.node.product.status!=='DRAFT'){
             const change=await admin(`mutation($product:ProductUpdateInput!){productUpdate(product:$product){product{id status} userErrors{field message}}}`,{product:{id:fresh.node.product.id,status:'DRAFT'}});
             if(change.productUpdate?.userErrors?.length||change.productUpdate?.product?.status!=='DRAFT')throw Error('New CJ draft status was not confirmed');
@@ -61,9 +62,11 @@ export function createContextPricingJob({production=false,storefrontConfig,env=p
           }
           const product=await admin(`query($id:ID!){node(id:$id){... on Product{id variants(first:100){nodes{id sku} pageInfo{hasNextPage}}}}}`,{id:fresh.node.product.id});
           if(product.node?.variants.pageInfo.hasNextPage)throw Error('Large CJ product requires a paginated import');
+          report.stage='holding_location';
           const services=(await admin(`query{shop{fulfillmentServices{handle serviceName location{id}}}}`)).shop?.fulfillmentServices;
           const locations=[...new Set((services||[]).filter(s=>[s.handle,s.serviceName].some(n=>String(n||'').toLowerCase()==='cjdropshipping')).map(s=>s.location?.id).filter(Boolean))];
           if(locations.length!==1)throw Error('CJ fulfillment location requires review');
+          report.stage='holding_profile';
           await sharedProfile({admin,fields:profileFields,locationId:locations[0],variantIds:product.node.variants.nodes.map(v=>v.id)});
           await db.setJSON(holdKey,{preparedAt:Date.now()});
         }
@@ -87,7 +90,7 @@ export function createContextPricingJob({production=false,storefrontConfig,env=p
       }
       await update(db,'shipping/private/context-queue',old=>({items:(old?.items||[]).filter(i=>i.variantId!==job.variantId||i.destination!==job.destination)}));
       await update(db,'shipping/private/context-routes',old=>({items:[...(old?.items||[]).filter(i=>i.variantId!==job.variantId||i.destination!==job.destination),{...job,checkedAt:Date.now()}].slice(-2000)}));
-    }catch(error){if(!locked&&error.message==='Worker already running')return new Response(null,{status:204});report.status='failed';report.error=error.message==='Shipping and market permission required'?error.message:'Destination configuration or supplier validation failed';if(['CJ fulfillment location requires review','CJ fulfillment groups require review','CJ fulfillment location was not confirmed','Ambiguous destination market','Destination market needs merchant review','Native country price not confirmed; shipping remains unchanged','Included shipping rate was not confirmed','Supplier quote temporarily unavailable'].includes(error.message))report.reason=error.message;if(error.missingScopes)report.missingScopes=error.missingScopes;}
+    }catch(error){if(!locked&&error.message==='Worker already running')return new Response(null,{status:204});report.status='failed';report.error=error.message==='Shipping and market permission required'?error.message:'Destination configuration or supplier validation failed';if(['CJ fulfillment location requires review','CJ fulfillment groups require review','CJ fulfillment location was not confirmed','Ambiguous destination market','Destination market needs merchant review','Native country price not confirmed; shipping remains unchanged','Included shipping rate was not confirmed','Supplier quote temporarily unavailable'].includes(error.message))report.reason=error.message;if(error.missingScopes)report.missingScopes=error.missingScopes;if(error.adminErrors?.length)report.adminErrors=error.adminErrors;if(["CJ shared shipping profile was not confirmed","CJ holding profile must have no shipping rates","Large CJ product requires a paginated import","New CJ draft status was not confirmed"].includes(error.message))report.reason=error.message;}
     finally{
       if(locked){await db.setJSON('shipping/private/context-last-run',report);await db.setJSON('shipping/private/context-lease',{until:0});console.log(JSON.stringify(report));}
     }

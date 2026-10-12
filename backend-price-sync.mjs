@@ -11,7 +11,11 @@ export function createAdminPricingClient({ domain, token, tokenProvider, fetcher
       body: JSON.stringify({ query, variables })
     });
     const result = await response.json();
-    if (!response.ok || result.errors || !result.data) throw new Error('Shopify price request failed');
+    if (!response.ok || result.errors || !result.data) {
+      const error=Error('Shopify price request failed');
+      error.adminErrors=(result.errors||[]).slice(0,3).map(e=>({message:String(e.message||'').slice(0,300),code:e.extensions?.code}));
+      throw error;
+    }
     return result.data;
   };
 }
