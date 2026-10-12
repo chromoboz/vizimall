@@ -18,6 +18,14 @@
     const origins = Object.keys(countries).filter(code => product?.tags?.includes(`country-${countries[code]}`));
     return origins.length === 1 ? origins[0] : null;
   };
+  function productVideos(media) {
+    const safeUrl = value => { try { const url = new URL(value); return url.protocol === 'https:' && !url.username && !url.password ? url.href : null; } catch { return null; } };
+    return (Array.isArray(media) ? media : []).filter(item => item.mediaContentType === 'VIDEO').map(item => {
+      const sources = (item.sources || []).filter(source => source.mimeType === 'video/mp4' && safeUrl(source.url));
+      const source = sources.find(source => source.height >= 480 && source.height <= 1080) || sources[0];
+      return source ? { url: safeUrl(source.url), poster: safeUrl(item.previewImage?.url), alt: item.alt || '' } : null;
+    }).filter(Boolean).slice(0, 5);
+  }
   const languageFor = country => root.VizimallLocale ? ({en:'EN',de:'DE',el:'EL',fr:'FR',it:'IT',es:'ES',nl:'NL',pl:'PL','pt-PT':'PT_PT'})[root.VizimallLocale.language] || 'EN' : languages[country];
   function createClient(config, fetcher = root.fetch.bind(root)) {
     if (!config || !/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(config.domain) || !config.publicToken || /^(shpat_|shpca_|shpss_|shppa_)/i.test(config.publicToken)) {
@@ -77,7 +85,7 @@
       let after = null, item, variants = [];
       do {
         const data = await request(`query Product($country: CountryCode!, $language: LanguageCode!, $id: ID!, $after: String) @inContext(country: $country, language: $language) {
-          product(id: $id) { ${productFields} descriptionHtml delivery:metafield(namespace:"vizimall",key:"delivery_routes"){type value} images(first: 250) { nodes { url altText } } variants(first: 100, after: $after) {
+          product(id: $id) { ${productFields} descriptionHtml delivery:metafield(namespace:"vizimall",key:"delivery_routes"){type value} images(first: 250) { nodes { url altText } } media(first: 50) { nodes { mediaContentType alt previewImage { url } ... on Video { sources { url mimeType height } } } } variants(first: 100, after: $after) {
             nodes { ${variantFields} } pageInfo { hasNextPage endCursor }
           } }
         }`, { country: shippingCountry, language: languageFor(country), id, after }, signal);
@@ -88,7 +96,7 @@
         if (page.hasNextPage && (!page.endCursor || page.endCursor === after)) throw new Error('Unable to load all product options.');
         after = page.hasNextPage ? page.endCursor : null;
       } while (after);
-      return { ...item, images: item.images?.nodes || [], variants };
+      return { ...item, images: item.images?.nodes || [], videos: productVideos(item.media?.nodes), variants };
     }
     async function checkout(country, lines, browsingCountry = lines[0]?.browsingCountry || country) {
       if (!validDestination(country) || !Array.isArray(lines) || !lines.length || lines.length > 50) throw new Error('Please review your cart.');
@@ -124,5 +132,5 @@
     }
     return Object.freeze({ products, product, checkout });
   }
-  root.VizimallStorefront = Object.freeze({ countries, stores, routing, matches, productStore, productOrigin, createClient });
+  root.VizimallStorefront = Object.freeze({ countries, stores, routing, matches, productStore, productOrigin, productVideos, createClient });
 })(typeof window === 'undefined' ? globalThis : window);

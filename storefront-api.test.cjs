@@ -8,6 +8,16 @@ const variantId = 'gid://shopify/ProductVariant/11';
 const variant = { id: variantId, title: 'Black', availableForSale: true, price: { amount: '12.50', currencyCode: 'EUR' } };
 const item = { id: productId, title: 'Lamp', tags: ['country-germany', 'store-tech'], variants: { nodes: [variant], pageInfo: { hasNextPage: false, endCursor: 'last' } } };
 const line = { productId, variantId, store: 'tech', quantity: 2 };
+test('Only usable hosted MP4 videos are rendered, with safe posters and no external embeds', () => {
+  const media = [
+    {mediaContentType:'EXTERNAL_VIDEO',sources:[{mimeType:'video/mp4',url:'https://example.com/embed'}]},
+    {mediaContentType:'VIDEO',sources:[{mimeType:'video/mp4',url:'javascript:alert(1)'}]},
+    {mediaContentType:'VIDEO',sources:[{mimeType:'application/x-mpegURL',url:'https://example.com/master.m3u8'}]},
+    {mediaContentType:'VIDEO',alt:'Lamp demo',previewImage:{url:'javascript:alert(1)'},sources:[{mimeType:'video/mp4',url:'https://cdn.shopify.com/demo.mp4',height:720}]}
+  ];
+  assert.deepEqual(api.productVideos(media),[{url:'https://cdn.shopify.com/demo.mp4',poster:null,alt:'Lamp demo'}]);
+  assert.deepEqual(api.productVideos(undefined),[]);
+});
 function mock(respond) {
   return api.createClient(config, async (url, options) => {
     assert.equal(url, 'https://example.myshopify.com/api/2026-10/graphql.json');

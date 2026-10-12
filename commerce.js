@@ -270,8 +270,8 @@ function createShippingQuoteClient(root) {
           if(quote.supplier==='autods')rows.splice(0,3,['Estimated delivery',tr('{days} business days including processing',{days:quote.totalDelivery.days})],['Availability',tr('{count} available',{count:quote.stockQuantity})]);
           if(quote.pricing)rows.push(['Price including standard shipping per item',money(quote.pricing.unitPrice)],[tr('Total for {count} item(s)',{count:quote.quantity}),money(quote.pricing.lineTotal)]);
           for(const [label,value] of rows)table.append(element('dt','',label),element('dd','',value));
-          note.textContent=tr(quote.pricing?.checkoutReady?'Standard shipping is included per item.':'The final price is being confirmed. Please wait before adding to your bag.')+' '+tr('Delivery estimates are not guaranteed. Preparation and transport are separate.');
-          if(quote.supplier==='autods')note.textContent=tr('Standard shipping is included per item.')+' '+tr('Delivery estimates are not guaranteed.');
+          note.textContent=tr(quote.pricing?.checkoutReady?'Standard shipping is included in this price. The price updates for your delivery country.':'The final price is being confirmed. Please wait before adding to your bag.')+' '+tr('Delivery estimates are not guaranteed. Preparation and transport are separate.');
+          if(quote.supplier==='autods')note.textContent=tr(quote.pricing?.checkoutReady?'Standard shipping is included in this price. The price updates for your delivery country.':'The final price is being confirmed. Please wait before adding to your bag.')+' '+tr('Delivery estimates are not guaranteed.');
           delivery.dispatchEvent(new CustomEvent('vizimall-shipping-quote',{detail:{variantId,quote},bubbles:true}));
         }
         methodControl.onchange=showQuote;showQuote();
@@ -495,6 +495,21 @@ function createShippingQuoteClient(root) {
         thumbnails.scrollTo({ left: Math.max(0, active.offsetLeft - thumbnails.offsetLeft - thumbnails.clientWidth / 2 + active.clientWidth / 2), behavior: matchMedia('(prefers-reduced-motion: reduce), (pointer: coarse)').matches ? 'auto' : 'smooth' });
       }
       gallery.append(stage, counter, thumbnails);
+      if (detail.videos?.length) {
+        const videos = element('section', 'product-videos');
+        videos.setAttribute('aria-label', tr('Product videos'));
+        videos.append(element('h3', '', tr('Product videos')));
+        detail.videos.forEach((media, index) => {
+          const player = document.createElement('video');
+          player.controls = true; player.playsInline = true; player.preload = 'none';
+          player.src = media.url;
+          if (media.poster) player.poster = media.poster;
+          player.setAttribute('aria-label', media.alt || `${detail.title} · Video ${index + 1}`);
+          videos.append(player);
+          modal.addEventListener('close', () => player.pause(), { once: true });
+        });
+        gallery.append(videos);
+      }
       if (photos.length) choosePhoto(0);
       else { enlarge.disabled = true; counter.textContent = 'Photos are currently unavailable.'; }
       content.replaceChildren(gallery);

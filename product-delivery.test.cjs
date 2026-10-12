@@ -10,7 +10,7 @@ test('Germany is the default delivery country; explicit and remembered choices t
   assert.equal(context.window.VizimallShipping.country,expected);
  }
 });
-test('Product delivery changes stay in the supplier page without creating a header selector',()=>{
+test('Product delivery changes stay on the same category without country-mall routing',()=>{
  const saved=new Map(), navigations=[], replacements=[];
  const document={documentElement:{dataset:{country:'DE'}},querySelector(){throw Error('Delivery controls must live inside the product');},querySelectorAll(){return[];},addEventListener(){}};
  const context={URL,Object,location:{href:'https://vizimall.com/tech.html?country=DE',origin:'https://vizimall.com'},localStorage:{getItem:key=>saved.get(key),setItem:(key,value)=>saved.set(key,value)},history:{state:null,replaceState:(state,title,url)=>replacements.push(String(url))},document};
@@ -22,7 +22,7 @@ test('Product delivery changes stay in the supplier page without creating a head
   assert.equal(context.window.VizimallShipping.country,code);
   assert.equal(document.documentElement.dataset.country,'DE');
   const link=context.window.VizimallShipping.withCountry('/tech.html?country=DE');
-  assert.equal(link.searchParams.get('country'),'DE');assert.equal(link.searchParams.get('shipping'),code);
+  assert.equal(link.searchParams.has('country'),false);assert.equal(link.searchParams.get('shipping'),code);
  }
  assert.deepEqual(navigations,[]);
  assert.equal(new URL(replacements.at(-1)).searchParams.get('shipping'),'GR');
