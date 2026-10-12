@@ -1,8 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { includedPrice, baselineForSync, cheapestMethod, parseEcbRates } from './backend-included-pricing.mjs';
+import { includedPrice, mainCatalogPrice, baselineForSync, cheapestMethod, parseEcbRates } from './backend-included-pricing.mjs';
 const now = Date.parse('2026-10-06T10:00:00Z');
 const fx = { date: '2026-10-05', rates: { USD: '1.1204', PLN: '4.3' } };
+test('Shared campaign reserve retains at least EUR 3 under the declared planning assumptions',()=>{
+  const args={baseUnitPrice:{amount:'5.90',currencyCode:'EUR'},supplierCost:{amount:'0',currencyCode:'EUR'}};
+  const price=mainCatalogPrice(args);
+  assert.equal(price.lineTotal.amount,'10.90');
+  assert.ok((Number(price.lineTotal.amount)-5.9)*(1/1.2-.04-.05)>=3);
+  assert.equal(mainCatalogPrice({...args,quantity:3}).lineTotal.amount,price.lineTotal.amount);
+  assert.throws(()=>mainCatalogPrice({...args,baseUnitPrice:{amount:'5.90',currencyCode:'USD'}}));
+});
 test('Included shipping converts actual freight once for the requested quantity without multiplying it twice', () => {
   const result = includedPrice({ baseUnitPrice: { amount: '29.90', currencyCode: 'EUR' }, quantity: 3, supplierCost: { amount: '6.60', currencyCode: 'USD' }, fx, now });
   assert.equal(result.includedShipping.amount, '5.89');

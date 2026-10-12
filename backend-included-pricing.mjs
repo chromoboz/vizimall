@@ -40,7 +40,14 @@ export function mainCatalogPrice(args){
   const shipping=BigInt(unit.includedShipping.amount.replace('.',''));
   // A modest reserve covers charges on freight as well as the product. These
   // are merchant pricing assumptions, not a statement of actual tax liability.
-  const total=base+(shipping*130n+99n)/100n;
+  // Merchant approved EUR 3 per order for the shared VIZIMALL campaign.
+  // Price each item conservatively for a one-item order. Gross up this reserve
+  // using planning assumptions only: 20% VAT, 4% variable fees, 5% returns.
+  // Retained fraction = 1/1.20 - .04 - .05 = 223/300. Actual costs may differ;
+  // this reserve does not guarantee a profit or cap the real campaign cost.
+  if(unit.baseUnitPrice.currencyCode!=='EUR')throw Error('Main catalog requires EUR');
+  const advertisingReserve=(300n*300n+222n)/223n;
+  const total=base+(shipping*130n+99n)/100n+advertisingReserve;
   const rounded=total<=90n?90n:((total-90n+99n)/100n)*100n+90n;
   return {...unit,lineTotal:money(rounded,unit.baseUnitPrice.currencyCode)};
 }
