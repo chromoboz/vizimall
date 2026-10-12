@@ -27,7 +27,7 @@ export function createContextPricingJob({production=false,storefrontConfig,env=p
       // and existing routes cannot starve behind visitor requests.
       job=cursor?.queuedLast?null:queue?.items?.[0]||oldRoute;
       if(!job){
-        const data=await admin(`query($after:String){productVariants(first:100,after:$after){nodes{id sku product{tags status vendor productType title}} pageInfo{hasNextPage endCursor}}}`,{after:cursor?.after||null});
+        const data=await admin(`query($after:String){productVariants(first:100,after:$after){nodes{id sku product{id tags status vendor productType title}} pageInfo{hasNextPage endCursor}}}`,{after:cursor?.after||null});
         const eligible=data.productVariants.nodes.filter(supplierContext);
         const products=new Map();
         for(const v of eligible){const key=v.product.id||v.id;const group=products.get(key)||[];group.push(v);products.set(key,group);}

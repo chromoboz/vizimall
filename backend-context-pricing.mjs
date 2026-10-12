@@ -15,7 +15,7 @@ export function supplierContext(variant){
 }
 function payload(data,key){const result=data?.[key];if(!result||result.userErrors?.length)throw Error('Shopify destination configuration was not confirmed');return result;}
 function sameMoney(a,b){return a?.currencyCode===b?.currencyCode&&Number(a.amount)===Number(b.amount);}
-const marketFields=`id name status conditions{conditionTypes regionsCondition{regions(first:250){nodes{... on MarketRegionCountry{code}} pageInfo{hasNextPage}}}} catalogs(first:100){nodes{id title status priceList{id currency}} pageInfo{hasNextPage}}`;
+const marketFields=`id name status conditions{conditionTypes regionsCondition{regions(first:2){nodes{... on MarketRegionCountry{code}} pageInfo{hasNextPage}}}} catalogs(first:10){nodes{id title status priceList{id currency}} pageInfo{hasNextPage}}`;
 export const profileFields=`id name default coversAllItems profileLocationGroups{locationGroup{id locations(first:10,includeLegacy:true){nodes{id} pageInfo{hasNextPage}}} locationGroupZones(first:16){nodes{zone{id countries{code{countryCode restOfWorld}}} methodDefinitions(first:2){nodes{id active name methodConditions{__typename} rateProvider{... on DeliveryRateDefinition{price{amount currencyCode}}}} pageInfo{hasNextPage}}} pageInfo{hasNextPage}}}`;
 function cjLocation(services){
   // The service registry is independent of a profile's assigned/unassigned
@@ -49,7 +49,7 @@ export async function prepareDestinationPrice({admin,db,variantId,expectedSku,br
   onStage('market_lookup');
   let after=null,market;
   do{
-    const result=await admin(`query($after:String){markets(first:100,after:$after){nodes{${marketFields}} pageInfo{hasNextPage endCursor}}}`,{after});
+    const result=await admin(`query($after:String){markets(first:25,after:$after){nodes{${marketFields}} pageInfo{hasNextPage endCursor}}}`,{after});
     for(const item of result.markets.nodes){
       const regions=item.conditions?.regionsCondition?.regions;
       if(!regions?.pageInfo.hasNextPage&&item.conditions.conditionTypes?.length===1&&regions?.nodes.length===1&&regions.nodes[0].code===destination){if(market)throw Error('Ambiguous destination market');market=item;}
