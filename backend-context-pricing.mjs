@@ -74,7 +74,11 @@ export async function prepareDestinationPrice({admin,db,variantId,expectedSku,br
   // A dedicated variant profile prevents unsupported destinations from becoming
   // purchasable via an address change at checkout. Shopify profile limits fail
   // closed; no fallback to a rest-of-world free-shipping rate.
-  const beforeProfile=await read();
+  let beforeProfile=await read();
+  for(let attempt=0;attempt<3&&!sameMoney(beforeProfile.node?.contextualPricing?.price,price);attempt++){
+    await new Promise(resolve=>setTimeout(resolve,1500));
+    beforeProfile=await read();
+  }
   if(beforeProfile.node?.sku!==expectedSku||JSON.stringify(beforeProfile.node?.product)!==JSON.stringify(variant.product)||!sameMoney(beforeProfile.node?.contextualPricing?.price,price))throw Error('Native country price not confirmed; shipping remains unchanged');
   if(mainCatalogContext(variant.product)){
     if(!launchDestinations.includes(destination))throw Error('Destination outside launch countries');

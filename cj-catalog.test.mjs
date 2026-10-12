@@ -64,7 +64,10 @@ test('Scheduled main catalog preparation visits all eight destinations and priva
     const url=new URL(req.url),destination=url.searchParams.get('shipping');
     assert.equal(url.searchParams.get('country'),'CN');destinations.push(destination);
     return Response.json({status:'available',sku,from:'CN',destination,pricing:{unitPrice:price}});
-  },prepare:async()=>({profileConfirmed:false})});
+  },prepare:async({destination})=>{
+    values.set('shipping/private/cj-candidate/1/'+destination,{sku,price,expiresAt:Date.now()+3600000});
+    return {profileConfirmed:false};
+  }});
   for(let i=0;i<8;i++)await run();
   assert.deepEqual(destinations,launchDestinations);
   assert.equal(values.get('shipping/private/context-last-run').status,'preparing_countries');

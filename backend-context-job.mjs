@@ -11,7 +11,7 @@ export function createContextPricingJob({production=false,storefrontConfig,env=p
   return async()=>{
     if(!production||env.VIZIMALL_NATIVE_SHIPPING_ENABLED!=='true')return new Response(null,{status:204});
     const db=await dbFactory(new Request('https://vizimall.com'));
-    let locked=false,job;
+    let locked=false,job,catalogAdvance;
     const report={status:'checking',checkedAt:new Date().toISOString()};
     const deadline=Date.now()+26000;
     const boundedFetch=(url,options={})=>fetcher(url,{...options,signal:AbortSignal.any([...(options.signal?[options.signal]:[]),AbortSignal.timeout(Math.max(1,Math.min(6000,deadline-Date.now())))])});
@@ -22,7 +22,8 @@ export function createContextPricingJob({production=false,storefrontConfig,env=p
       const queue=await db.get('shipping/private/context-queue',{type:'json'});
       const routes=await db.get('shipping/private/context-routes',{type:'json'});
       const oldRoute=(routes?.items||[]).find(r=>r.checkedAt<Date.now()-1800000);
-      const cursor=await db.get('shipping/private/context-cursor',{type:'json'});
+      let cursor=await db.get('shipping/private/context-cursor',{type:'json'});
+      if(cursor?.version!==2){cursor={version:2,index:0,destinationIndex:0,after:null,queuedLast:false};await db.setJSON('shipping/private/context-cursor',cursor);}
       // Alternate queued destination requests with catalog checks so new imports
       // and existing routes cannot starve behind visitor requests.
       job=cursor?.queuedLast?null:queue?.items?.[0]||oldRoute;
@@ -35,9 +36,17 @@ export function createContextPricingJob({production=false,storefrontConfig,env=p
         for(let row=0;row<eligible.length;row++)for(const group of products.values())if(group[row])variants.push(group[row]);
         if(data.productVariants.pageInfo.hasNextPage&&!data.productVariants.pageInfo.endCursor)throw Error('Incomplete catalog');
         const index=(cursor?.index||0)%Math.max(1,variants.length),variant=variants[index];
-        const main=variant&&mainCatalogContext(variant.product),destinationIndex=main?(cursor?.destinationIndex||0)%launchDestinations.length:0;
-        const nextVariant=!main||destinationIndex===launchDestinations.length-1;
-        await db.setJSON('shipping/private/context-cursor',{queuedLast:false,destinationIndex:nextVariant?0:destinationIndex+1,index:nextVariant?(index+1>=variants.length?0:index+1):index,after:nextVariant&&index+1>=variants.length&&data.productVariants.pageInfo.hasNextPage?data.productVariants.pageInfo.endCursor:nextVariant&&index+1>=variants.length?null:cursor?.after||null});
+        const main=variant&&mainCatalogContext(variant.product);
+        let destinationIndex=0;
+        if(main){
+          const root='shipping/private/cj-candidate/'+variant.id.split('/').at(-1)+'/';
+          const records=await Promise.all(launchDestinations.map(d=>db.get(root+d,{type:'json'})));
+          const missing=records.findIndex(r=>r?.sku!==variant.sku||r.expiresAt<=Date.now());
+          destinationIndex=missing<0?0:missing;
+        }
+        const nextVariant=!main;
+        catalogAdvance={version:2,queuedLast:false,destinationIndex:0,index:index+1>=variants.length?0:index+1,after:index+1>=variants.length&&data.productVariants.pageInfo.hasNextPage?data.productVariants.pageInfo.endCursor:index+1>=variants.length?null:cursor?.after||null};
+        await db.setJSON('shipping/private/context-cursor',nextVariant?catalogAdvance:{...cursor,version:2,queuedLast:false,index,destinationIndex,after:cursor?.after||null});
         if(variant){const source=supplierContext(variant);job={variantId:variant.id,sku:variant.sku,...source,destination:main?launchDestinations[destinationIndex]:source.browsing};}
         else job=queue?.items?.[0]||oldRoute;
       }else await db.setJSON('shipping/private/context-cursor',{...cursor,queuedLast:true});
@@ -83,10 +92,12 @@ export function createContextPricingJob({production=false,storefrontConfig,env=p
       if(quote.status!=='available'){
         await revokeDestination({admin,db,variantId:job.variantId,destination:job.destination});
         report.status='route_unavailable';
+        if(catalogAdvance)await db.setJSON('shipping/private/context-cursor',catalogAdvance);
       }else{
         const prepared=await prepare({admin,db,variantId:job.variantId,expectedSku:job.sku,browsing:job.browsing,category:job.category,destination:job.destination,quote,onStage:stage=>{report.stage=stage;}});
         if(job.destination===job.browsing)await update(db,baseKey,previous=>({...previous,lastWritten:quote.pricing.unitPrice}));
         report.status=prepared?.profileConfirmed===false?'preparing_countries':'verified';
+        if(catalogAdvance&&prepared?.profileConfirmed===true)await db.setJSON('shipping/private/context-cursor',catalogAdvance);
       }
       await update(db,'shipping/private/context-queue',old=>({items:(old?.items||[]).filter(i=>i.variantId!==job.variantId||i.destination!==job.destination)}));
       await update(db,'shipping/private/context-routes',old=>({items:[...(old?.items||[]).filter(i=>i.variantId!==job.variantId||i.destination!==job.destination),{...job,checkedAt:Date.now()}].slice(-2000)}));
