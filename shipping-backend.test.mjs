@@ -41,6 +41,11 @@ test('Main catalog quotes China dispatch to the delivery country without country
  f.db.values.set('shipping/private/context-price/1/DE',{sku:item.sku,profileConfirmed:true,expiresAt:Date.now()+3600000,price:{amount:'17.90',currencyCode:'EUR'}});
  const confirmed=await(await f.handler(new Request(url))).json();
  assert.equal(confirmed.pricing.checkoutReady,true);assert.equal(confirmed.pricing.unitPrice.amount,'17.90');
+ for(const code of ['DE','FR','NL','PL','ES','PT','IT','GR'])f.db.values.set('shipping/private/context-price/1/'+code,{sku:item.sku,profileConfirmed:true,expiresAt:Date.now()+3600000,price:{amount:'17.90',currencyCode:'EUR'}});
+ const supplierCalls=f.calls.filter(c=>c.url.includes('cjdropshipping.com')).length;
+ const countries=await(await f.handler(new Request(url+'&check=destinations&cached=1'))).json();
+ assert.equal(countries.status,'complete');assert.equal(countries.destinations.length,8);
+ assert.equal(f.calls.filter(c=>c.url.includes('cjdropshipping.com')).length,supplierCalls);
  const outside=await (await f.handler(new Request(url.replace('shipping=DE','shipping=US')))).json();
  assert.equal(outside.status,'unavailable');
 });

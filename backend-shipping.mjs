@@ -145,6 +145,11 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
       if(!/^CJ[A-Za-z0-9 _-]{3,190}$/.test(variant.sku||''))return reply(await autodsQuote({variant,browsing,destination,category,quantity,discovery:url.searchParams.get('check')==='destinations'}));
       if(!env.CJ_API_KEY)return reply({status:'not_connected',methods:[]});
       if(url.searchParams.get('check')==='destinations'&&url.searchParams.get('cached')==='1'){
+        if(main&&quantity===1){
+          const prepared=await Promise.all(launchDestinations.map(code=>db.get('shipping/private/context-price/'+id.split('/').at(-1)+'/'+code,{type:'json'})));
+          const confirmed=launchDestinations.filter((code,i)=>prepared[i]?.profileConfirmed===true&&prepared[i]?.sku===variant.sku&&prepared[i]?.expiresAt>Date.now());
+          if(confirmed.length===launchDestinations.length)return reply({status:'complete',destinations:confirmed,expiresAt:Math.min(...prepared.map(p=>p.expiresAt)),retryAfterMs:8000});
+        }
         await enqueueDestinationDiscovery(db,{variantId:id,sku:variant.sku,browsing,category,quantity});
         const discoveryKey='shipping/private/destinations/'+hash(JSON.stringify([id,variant.sku,browsing,quantity]));
         const state=await db.get(discoveryKey,{type:'json'});

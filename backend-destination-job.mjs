@@ -1,6 +1,7 @@
 import {store,hash,update} from './backend-persistence.mjs';
 import {createShippingHandler} from './backend-shipping.mjs';
 import {enqueueDestinationDiscoveries} from './backend-destinations.mjs';
+import {launchDestinations} from './backend-cj-catalog.mjs';
 
 export function createDestinationJob({production=false,env=process.env,storefrontConfig,dbFactory=store,shippingFactory=createShippingHandler,fetcher=fetch}={}) {
   return async()=>{
@@ -25,10 +26,11 @@ export function createDestinationJob({production=false,env=process.env,storefron
       for(const job of [...(queue?.items||[])].sort((a,b)=>a.lastRun-b.lastRun)){
         const key='shipping/private/destinations/'+hash(JSON.stringify([job.variantId,job.sku,job.browsing,job.quantity]));
         const state=await db.get(key,{type:'json'});
-        if(state?.expiresAt>Date.now()&&state.checked.length===globalThis.VizimallDestinations.codes.length)continue;
+        const codes=job.browsing==='CN'?launchDestinations:globalThis.VizimallDestinations.codes;
+        if(state?.expiresAt>Date.now()&&codes.every(code=>state.checked.includes(code)))continue;
         await update(db,'shipping/private/discovery-queue',old=>({items:(old?.items||[]).map(i=>i.identity===job.identity?{...i,lastRun:Date.now()}:i)}));
         const handler=shippingFactory({dbFactory:async()=>db,env,storefrontConfig,allowUnavailable:true,fetcher:boundedFetch,discoveryBudgetMs:8000});
-        const response=await handler(new Request('https://vizimall.com/.netlify/functions/shipping?'+new URLSearchParams({check:'destinations',variant:job.variantId,country:job.browsing,store:job.category,shipping:job.browsing,quantity:String(job.quantity)})));
+        const response=await handler(new Request('https://vizimall.com/.netlify/functions/shipping?'+new URLSearchParams({check:'destinations',variant:job.variantId,country:job.browsing,store:job.category,shipping:job.browsing==='CN'?'DE':job.browsing,quantity:String(job.quantity)})));
         const result=await response.json();
         const summary={variantId:job.variantId,status:response.ok?result.status:'temporarily_unavailable',checkedAt:new Date().toISOString(),confirmed:result.destinations?.length||0};
         await db.setJSON('shipping/private/discovery-last-run',summary);
