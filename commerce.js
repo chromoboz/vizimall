@@ -532,7 +532,9 @@ function createShippingQuoteClient(root) {
         const option = element('option', '', `${variant.title === 'Default Title' ? tr('Standard') : variant.title} · ${money(variant.price)}${variant.availableForSale ? '' : ' · '+tr('Sold out')}`);
         option.value = variant.id; option.disabled = !variant.availableForSale; select.append(option);
       }
-      const available = detail.variants.find(v => v.availableForSale);
+      const euDestination=['DE','FR','NL','PL','ES','PT','IT','GR'].includes(shippingCountry);
+      const preferred=euDestination&&detail.variants.find(v=>v.availableForSale&&(v.selectedOptions||[]).some(o=>/electrical outlet|plug/i.test(o.name)&&o.value==='EU'));
+      const available = preferred||detail.variants.find(v => v.availableForSale);
       if (available||detail.variants[0]) select.value = (available||detail.variants[0]).id;
       const optionGroups = new Map();
       for (const variant of detail.variants) for (const option of variant.selectedOptions || []) {
