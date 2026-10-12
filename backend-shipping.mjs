@@ -209,7 +209,10 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
         const standard=cheapestMethod(unitOptions.filter(option=>methods.some(method=>method.name===option.name)));
         if(!standard)throw new Error('Standard unit shipping unavailable');
         const previous=await db.get('shipping/private/base-price/'+id.split('/').at(-1),{type:'json'});
-        const base=baselineForSync(variant.price,previous);
+        // Storefront prices already include the country's freight. Main-catalog
+        // quotes must reuse the private merchant base, never add freight twice.
+        const base=main?previous?.baseUnitPrice:baselineForSync(variant.price,previous);
+        if(!base||base.currencyCode!=='EUR')throw new Error('Merchant base price not prepared');
         const fxKey='shipping/private/ecb-rates';
         let fx=await db.get(fxKey,{type:'json'});
         if(!fx||fx.refreshedAt<Date.now()-3600000){

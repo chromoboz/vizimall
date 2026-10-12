@@ -659,7 +659,8 @@ function createShippingQuoteClient(root) {
     card.dataset.productId = item.id;
     const rating = element('p', 'product-rating', 'Loading reviews…');
     rating.setAttribute('aria-live', 'polite');
-    card.append(open, rating, element('p', 'product-price', 'From ' + money(item.priceRange.minVariantPrice)), button(item.availableForSale ? 'Choose options' : 'View product · Sold out', () => showProduct(item), 'commerce-secondary'), favourite);
+    const priceLabel=String(item.vendor||'').toLowerCase()==='cjdropshipping'?'View price including shipping':'From '+money(item.priceRange.minVariantPrice);
+    card.append(open, rating, element('p', 'product-price', priceLabel), button(item.availableForSale ? 'Choose options' : 'View product · Sold out', () => showProduct(item), 'commerce-secondary'), favourite);
     if (store === 'all') {
       const category = element('a', 'product-category', tr(window.VizimallNavigation.labels[itemStore]));
       category.href = itemStore + '.html?country=' + country + '&shipping=' + shippingCountry;

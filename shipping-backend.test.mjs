@@ -29,8 +29,8 @@ function fixture(overrides={}){
  return {calls,db,handler:createShippingHandler({dbFactory:async()=>db,fetcher,env:{CJ_API_KEY:'test-secret'},storefrontConfig:settings,probeSku:'CJTEST-1',pricing:overrides.pricing||false,allowUnavailable:overrides.allowUnavailable||false,supplierPacingMs:0})};
 }
 test('Main catalog quotes China dispatch to the delivery country without country/store tags',async()=>{
- const item={...variant,price:{amount:'5.90',currencyCode:'EUR'},product:{vendor:'CJdropshipping',title:'Manual Neck Massager',tags:[]}};
- const f=fixture({variant:item,pricing:true,methods:[{logisticName:'CJPacket',logisticPrice:'9.90',logisticAging:'8-18'}]});
+ const item={...variant,price:{amount:'17.90',currencyCode:'EUR'},product:{vendor:'CJdropshipping',title:'Manual Neck Massager',tags:[]}};
+ const f=fixture({variant:item,pricing:true,entries:[['shipping/private/base-price/1',{baseUnitPrice:{amount:'5.90',currencyCode:'EUR'},globalLastSeen:'5.90',lastWritten:{amount:'5.90',currencyCode:'EUR'}}]],methods:[{logisticName:'CJPacket',logisticPrice:'9.90',logisticAging:'8-18'}]});
  const url='https://vizimall.com/api/shipping?variant=gid://shopify/ProductVariant/1&country=CN&shipping=DE&store=beauty';
  const result=await (await f.handler(new Request(url))).json();
  assert.equal(result.status,'available');assert.equal(result.from,'CN');assert.equal(result.destination,'DE');
@@ -38,6 +38,9 @@ test('Main catalog quotes China dispatch to the delivery country without country
  const freight=f.calls.find(c=>c.url.includes('freightCalculate')).body;
  assert.equal(freight.startCountryCode,'CN');assert.equal(freight.endCountryCode,'DE');
  assert.equal(result.pricing.unitPrice.amount,'17.90');assert.equal(result.pricing.checkoutReady,false);
+ f.db.values.set('shipping/private/context-price/1/DE',{sku:item.sku,profileConfirmed:true,expiresAt:Date.now()+3600000,price:{amount:'17.90',currencyCode:'EUR'}});
+ const confirmed=await(await f.handler(new Request(url))).json();
+ assert.equal(confirmed.pricing.checkoutReady,true);assert.equal(confirmed.pricing.unitPrice.amount,'17.90');
  const outside=await (await f.handler(new Request(url.replace('shipping=DE','shipping=US')))).json();
  assert.equal(outside.status,'unavailable');
 });

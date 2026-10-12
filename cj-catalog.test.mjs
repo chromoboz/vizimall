@@ -53,9 +53,11 @@ test('Scheduled main catalog preparation visits all eight destinations and priva
   values.set('shipping/private/cj-held/1',{preparedAt:Date.now()});
   const variant={id:variantId,sku,price:'5.90',product,contextualPricing:{price:{amount:'5.90',currencyCode:'EUR'}}};
   const destinations=[];
+  let publications=0;
   const admin=async q=>{
     if(q.includes('currentAppInstallation'))return {currentAppInstallation:{accessScopes:requiredShippingScopes.map(handle=>({handle}))}};
     if(q.includes('productVariants('))return {productVariants:{nodes:[variant],pageInfo:{hasNextPage:false}}};
+    if(q.includes('productUpdate(')){publications++;return {productUpdate:{product:{id:product.id,status:'ACTIVE'},userErrors:[]}};}
     return {shop:{currencyCode:'EUR'},node:variant};
   };
   const run=createContextPricingJob({production:true,env:{VIZIMALL_NATIVE_SHIPPING_ENABLED:'true'},storefrontConfig:{domain:'example.myshopify.com'},dbFactory:async()=>db,adminFactory:()=>admin,shippingFactory:options=>async req=>{
@@ -66,9 +68,9 @@ test('Scheduled main catalog preparation visits all eight destinations and priva
     return Response.json({status:'available',sku,from:'CN',destination,pricing:{unitPrice:price}});
   },prepare:async({destination})=>{
     values.set('shipping/private/cj-candidate/1/'+destination,{sku,price,expiresAt:Date.now()+3600000});
-    return {profileConfirmed:false};
+    return {profileConfirmed:destinations.length===8,price};
   }});
-  for(let i=0;i<8;i++)await run();
+  for(let i=0;i<8;i++){await run();assert.equal(publications,i===7?1:0);}
   assert.deepEqual(destinations,launchDestinations);
-  assert.equal(values.get('shipping/private/context-last-run').status,'preparing_countries');
+  assert.equal(values.get('shipping/private/context-last-run').status,'verified');
 });

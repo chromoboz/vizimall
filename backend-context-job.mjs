@@ -97,6 +97,12 @@ export function createContextPricingJob({production=false,storefrontConfig,env=p
         const prepared=await prepare({admin,db,variantId:job.variantId,expectedSku:job.sku,browsing:job.browsing,category:job.category,destination:job.destination,quote,onStage:stage=>{report.stage=stage;}});
         if(job.destination===job.browsing)await update(db,baseKey,previous=>({...previous,lastWritten:quote.pricing.unitPrice}));
         report.status=prepared?.profileConfirmed===false?'preparing_countries':'verified';
+        if(prepared?.profileConfirmed===true&&mainCatalogContext(fresh.node.product)&&fresh.node.product.status==='DRAFT'){
+          report.stage='publish_verified_product';
+          const published=await admin(`mutation($product:ProductUpdateInput!){productUpdate(product:$product){product{id status} userErrors{field message}}}`,{product:{id:fresh.node.product.id,status:'ACTIVE'}});
+          if(published.productUpdate?.userErrors?.length||published.productUpdate?.product?.status!=='ACTIVE')throw Error('Verified CJ product publication was not confirmed');
+        }
+        if(prepared?.price)report.price=prepared.price;
         if(catalogAdvance&&prepared?.profileConfirmed===true)await db.setJSON('shipping/private/context-cursor',catalogAdvance);
       }
       await update(db,'shipping/private/context-queue',old=>({items:(old?.items||[]).filter(i=>i.variantId!==job.variantId||i.destination!==job.destination)}));
