@@ -528,7 +528,10 @@ function createShippingQuoteClient(root) {
       const select = element('select', 'variant-select');
       const selectId = `variant-${detail.id.split('/').pop()}`;
       select.id = selectId; selectLabel.htmlFor = selectId;
-      for (const variant of detail.variants) {
+      // CJ options in the holding profile are unavailable for checkout. Do not
+      // fill the product screen with disabled choices while they are prepared.
+      const offeredVariants=/^cjdropshipping$/i.test(detail.vendor||'')?detail.variants.filter(v=>v.availableForSale):detail.variants;
+      for (const variant of offeredVariants) {
         const option = element('option', '', `${variant.title === 'Default Title' ? tr('Standard') : variant.title} · ${money(variant.price)}${variant.availableForSale ? '' : ' · '+tr('Sold out')}`);
         option.value = variant.id; option.disabled = !variant.availableForSale; select.append(option);
       }
@@ -537,7 +540,7 @@ function createShippingQuoteClient(root) {
       const available = preferred||detail.variants.find(v => v.availableForSale);
       if (available||detail.variants[0]) select.value = (available||detail.variants[0]).id;
       const optionGroups = new Map();
-      for (const variant of detail.variants) for (const option of variant.selectedOptions || []) {
+      for (const variant of offeredVariants) for (const option of variant.selectedOptions || []) {
         if (option.name === 'Title' && option.value === 'Default Title') continue;
         if (!optionGroups.has(option.name)) optionGroups.set(option.name, new Set());
         optionGroups.get(option.name).add(option.value);
@@ -548,7 +551,7 @@ function createShippingQuoteClient(root) {
         group.append(element('legend', '', name));
         const choices = element('div', 'option-choices');
         for (const value of values) {
-          const eligible = detail.variants.filter(v => v.selectedOptions?.some(o => o.name === name && o.value === value));
+          const eligible = offeredVariants.filter(v => v.selectedOptions?.some(o => o.name === name && o.value === value));
           const choice = button('', () => {
             const current = detail.variants.find(v => v.id === select.value);
             const next = eligible.find(v => v.availableForSale && v.selectedOptions.every(o => o.name === name || current?.selectedOptions?.some(c => c.name === o.name && c.value === o.value)))

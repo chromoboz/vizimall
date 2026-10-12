@@ -1,5 +1,6 @@
 // Private server calculations. Never trust a browser-supplied price or FX rate.
 const supported = new Set(['EUR', 'USD', 'PLN']);
+export const mainPricingPolicy='cost22-shared27-v1';
 function decimal(value) {
   const text = String(value);
   if (!/^\d{1,9}(?:\.\d{1,8})?$/.test(text)) throw new Error('Invalid monetary value');
@@ -46,7 +47,19 @@ export function mainCatalogPrice(args){
   // can reduce it; actual advertising cost remains outside the profit target.
   if(unit.baseUnitPrice.currencyCode!=='EUR')throw Error('Main catalog requires EUR');
   const advertisingReserve=300n;
-  const total=base+(shipping*130n+99n)/100n+advertisingReserve;
+  const productCost=convertCost(args.productCost,'EUR',args.fx,args.now);
+  const product=BigInt(productCost.amount.replace('.',''));
+  if(product<=0n)throw Error('Verified CJ product cost required');
+  // Shared store overhead: regular EUR 27/month / merchant-selected 20
+  // total store orders, conservatively budgeted on a one-item order.
+  // Planning VAT 22%, highest currently offered payment fee (Klarna)
+  // 4.99% + .35, returns reserve 5%, supplier FX/payment reserve 2%.
+  // These reserves are estimates, not guarantees of actual expenses.
+  const reservedCost=((product+shipping)*102n+99n)/100n;
+  const retainedNumerator=1000000n-999n*122n;
+  const minimum=((reservedCost+35n+135n+300n)*1220000n+retainedNumerator-1n)/retainedNumerator;
+  const merchantTotal=base+(shipping*130n+99n)/100n;
+  const total=(minimum>merchantTotal?minimum:merchantTotal)+advertisingReserve;
   const rounded=total<=90n?90n:((total-90n+99n)/100n)*100n+90n;
   return {...unit,lineTotal:money(rounded,unit.baseUnitPrice.currencyCode)};
 }

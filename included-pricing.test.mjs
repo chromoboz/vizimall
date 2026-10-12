@@ -3,13 +3,20 @@ import assert from 'node:assert/strict';
 import { includedPrice, mainCatalogPrice, baselineForSync, cheapestMethod, parseEcbRates } from './backend-included-pricing.mjs';
 const now = Date.parse('2026-10-06T10:00:00Z');
 const fx = { date: '2026-10-05', rates: { USD: '1.1204', PLN: '4.3' } };
-test('Shared campaign adds a flat EUR 3 per item without tax gross-up',()=>{
-  const args={baseUnitPrice:{amount:'5.90',currencyCode:'EUR'},supplierCost:{amount:'0',currencyCode:'EUR'}};
+test('Main catalog covers shared normal overhead and declared costs before a flat advertising addition',()=>{
+  const args={baseUnitPrice:{amount:'5.90',currencyCode:'EUR'},supplierCost:{amount:'0',currencyCode:'EUR'},productCost:{amount:'1.36',currencyCode:'EUR'}};
   const price=mainCatalogPrice(args);
-  assert.equal(price.lineTotal.amount,'8.90');
-  assert.equal(mainCatalogPrice({...args,supplierCost:{amount:'10.00',currencyCode:'EUR'}}).lineTotal.amount,'21.90');
+  assert.equal(price.lineTotal.amount,'11.90');
+  const beforeAdvertising=Number(price.lineTotal.amount)-3;
+  const plannedMargin=beforeAdvertising/1.22-beforeAdvertising*(.0499+.05)-1.36*1.02-.35-1.35;
+  assert.ok(plannedMargin>=3);
+  const freightPrice=mainCatalogPrice({...args,supplierCost:{amount:'10.00',currencyCode:'EUR'}});
+  const subtotal=Number(freightPrice.lineTotal.amount)-3;
+  assert.ok(subtotal/1.22-subtotal*(.0499+.05)-11.36*1.02-.35-1.35>=3);
   assert.equal(mainCatalogPrice({...args,quantity:3}).lineTotal.amount,price.lineTotal.amount);
   assert.throws(()=>mainCatalogPrice({...args,baseUnitPrice:{amount:'5.90',currencyCode:'USD'}}));
+  assert.throws(()=>mainCatalogPrice({...args,productCost:undefined}));
+  assert.throws(()=>mainCatalogPrice({...args,productCost:{amount:'0.00',currencyCode:'EUR'}}));
 });
 test('Included shipping converts actual freight once for the requested quantity without multiplying it twice', () => {
   const result = includedPrice({ baseUnitPrice: { amount: '29.90', currencyCode: 'EUR' }, quantity: 3, supplierCost: { amount: '6.60', currencyCode: 'USD' }, fx, now });

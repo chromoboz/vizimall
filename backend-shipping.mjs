@@ -2,7 +2,7 @@ import { store, limit, hash, update } from './backend-persistence.mjs';
 import './shipping-destinations.js';
 import {auditedDestinations} from './backend-destination-audit.mjs';
 import { discoverDestinations, enqueueDestinationDiscovery } from './backend-destinations.mjs';
-import { baselineForSync, cheapestMethod, includedPrice, mainCatalogPrice, parseEcbRates, shippingMethods } from './backend-included-pricing.mjs';
+import { baselineForSync, cheapestMethod, includedPrice, mainCatalogPrice, convertCost, parseEcbRates, shippingMethods } from './backend-included-pricing.mjs';
 import {createAutoDSQuote} from './backend-autods-shipping.mjs';
 import {mainCatalogContext,launchDestinations} from './backend-cj-catalog.mjs';
 const countries = {CN:'china',DE:'germany',NL:'netherlands',FR:'france',GR:'greece',IT:'italy',PL:'poland',PT:'portugal',ES:'spain'};
@@ -225,7 +225,22 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
           if(!response.ok)throw new Error('Currency rates unavailable');
           fx={...parseEcbRates(await response.text()),refreshedAt:Date.now()};await db.setJSON(fxKey,fx);
         }
-        const unit=(main?mainCatalogPrice:includedPrice)({baseUnitPrice:base,supplierCost:standard.supplierCost,fx});
+        let productCost;
+        if(main){
+          const costKey='shipping/private/cj-unit-cost/'+hash(variant.sku);
+          let costRecord=await db.get(costKey,{type:'json'});
+          if(costRecord?.sku!==variant.sku||costRecord?.expiresAt<=Date.now()){
+            const detail=await cj('product/query?variantSku='+encodeURIComponent(variant.sku),await token(db));
+            const exact=(detail?.variants||[]).filter(v=>v.variantSku===variant.sku&&v.vid);
+            if(exact.length!==1)throw Error('Verified CJ product cost required');
+            productCost=convertCost({amount:exact[0].variantSellPrice,currencyCode:'USD'},'USD');
+            if(Number(productCost.amount)<=0)throw Error('Verified CJ product cost required');
+            costRecord={sku:variant.sku,productCost,expiresAt:Date.now()+cacheMs};
+            await db.setJSON(costKey,costRecord);
+          }
+          productCost=costRecord.productCost;
+        }
+        const unit=(main?mainCatalogPrice:includedPrice)({baseUnitPrice:base,supplierCost:standard.supplierCost,productCost,fx});
         const cents=BigInt(unit.lineTotal.amount.replace('.',''))*BigInt(quantity);
         const lineTotal={amount:(cents/100n)+'.'+String(cents%100n).padStart(2,'0'),currencyCode:base.currencyCode};
         const ready=await db.get('shipping/private/context-price/'+id.split('/').at(-1)+'/'+destination,{type:'json'});

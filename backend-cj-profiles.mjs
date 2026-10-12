@@ -1,4 +1,5 @@
 import {launchDestinations} from './backend-cj-catalog.mjs';
+import {mainPricingPolicy} from './backend-included-pricing.mjs';
 const readyName='VIZIMALL CJ — 8 destinations included';
 const holdName='VIZIMALL CJ — pending verification';
 function result(data,key){const r=data?.[key];if(!r||r.userErrors?.length){const error=Error('CJ shared shipping profile was not confirmed');error.adminErrors=(r?.userErrors||[]).slice(0,3).map(e=>({message:String(e.message||'').slice(0,300),field:e.field}));throw error;}return r;}
@@ -41,10 +42,10 @@ export async function sharedProfile({admin,fields,locationId,ready=false,variant
 }
 export async function prepareSharedRoute({admin,db,fields,variantId,sku,destination,price,locationId,now=Date.now()}){
   const root='shipping/private/cj-candidate/'+variantId.split('/').at(-1)+'/';
-  const candidate={sku,price,checkedAt:now,expiresAt:now+6*3600000};
+  const candidate={sku,price,policy:mainPricingPolicy,checkedAt:now,expiresAt:now+6*3600000};
   await db.setJSON(root+destination,candidate);
   const records=await Promise.all(launchDestinations.map(d=>db.get(root+d,{type:'json'})));
-  if(records.some(r=>r?.sku!==sku||r.expiresAt<=now))return {profileConfirmed:false,price,expiresAt:0};
+  if(records.some(r=>r?.sku!==sku||r.policy!==mainPricingPolicy||r.expiresAt<=now))return {profileConfirmed:false,price,expiresAt:0};
   // Recheck all eight native prices immediately before associating the variant.
   const native=await Promise.all(launchDestinations.map(country=>admin(`query($id:ID!,$country:CountryCode!){node(id:$id){... on ProductVariant{sku contextualPricing(context:{country:$country}){price{amount currencyCode}}}}}`,{id:variantId,country})));
   for(let i=0;i<launchDestinations.length;i++){

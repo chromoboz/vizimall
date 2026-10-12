@@ -1,7 +1,7 @@
 import {store,update} from './backend-persistence.mjs';
 import {createAdminPricingClientFromEnv} from './backend-price-sync.mjs';
 import {createShippingHandler} from './backend-shipping.mjs';
-import {baselineForSync} from './backend-included-pricing.mjs';
+import {baselineForSync,mainPricingPolicy} from './backend-included-pricing.mjs';
 import {assertShippingScopes,supplierContext,prepareDestinationPrice,revokeDestination,profileFields} from './backend-context-pricing.mjs';
 import {mainCatalogContext,launchDestinations} from './backend-cj-catalog.mjs';
 import {sharedProfile} from './backend-cj-profiles.mjs';
@@ -23,15 +23,20 @@ export function createContextPricingJob({production=false,storefrontConfig,env=p
       const routes=await db.get('shipping/private/context-routes',{type:'json'});
       const oldRoute=(routes?.items||[]).find(r=>r.checkedAt<Date.now()-1800000);
       let cursor=await db.get('shipping/private/context-cursor',{type:'json'});
-      if(cursor?.version!==2){cursor={version:2,index:0,destinationIndex:0,after:null,queuedLast:false};await db.setJSON('shipping/private/context-cursor',cursor);}
+      if(cursor?.version!==3){cursor={version:3,index:0,destinationIndex:0,after:null,queuedLast:false,migrating:true};await db.setJSON('shipping/private/context-cursor',cursor);}
       // Alternate queued destination requests with catalog checks so new imports
       // and existing routes cannot starve behind visitor requests.
-      job=cursor?.queuedLast?null:queue?.items?.[0]||oldRoute;
+      const queued=queue?.items?.[0]||oldRoute;
+      job=(cursor?.migrating&&(!queued||queued.browsing==='CN'))||cursor?.queuedLast?null:queued;
       if(!job){
-        const data=await admin(`query($after:String){productVariants(first:100,after:$after){nodes{id sku product{id tags status vendor productType title}} pageInfo{hasNextPage endCursor}}}`,{after:cursor?.after||null});
+        const data=await admin(`query($after:String){productVariants(first:100,after:$after){nodes{id sku selectedOptions{name value} product{id tags status vendor productType title}} pageInfo{hasNextPage endCursor}}}`,{after:cursor?.after||null});
         const eligible=data.productVariants.nodes.filter(supplierContext);
         const products=new Map();
         for(const v of eligible){const key=v.product.id||v.id;const group=products.get(key)||[];group.push(v);products.set(key,group);}
+        for(const group of products.values()){
+          const eu=group.findIndex(v=>mainCatalogContext(v.product)&&(v.selectedOptions||[]).some(o=>/electrical outlet|plug/i.test(o.name)&&o.value==='EU'));
+          if(eu>0)group.unshift(...group.splice(eu,1));
+        }
         const variants=[];
         for(let row=0;row<eligible.length;row++)for(const group of products.values())if(group[row])variants.push(group[row]);
         if(data.productVariants.pageInfo.hasNextPage&&!data.productVariants.pageInfo.endCursor)throw Error('Incomplete catalog');
@@ -41,12 +46,12 @@ export function createContextPricingJob({production=false,storefrontConfig,env=p
         if(main){
           const root='shipping/private/cj-candidate/'+variant.id.split('/').at(-1)+'/';
           const records=await Promise.all(launchDestinations.map(d=>db.get(root+d,{type:'json'})));
-          const missing=records.findIndex(r=>r?.sku!==variant.sku||r.expiresAt<=Date.now());
+          const missing=records.findIndex(r=>r?.sku!==variant.sku||r.policy!==mainPricingPolicy||r.expiresAt<=Date.now());
           destinationIndex=missing<0?0:missing;
         }
         const nextVariant=!main;
-        catalogAdvance={version:2,queuedLast:false,destinationIndex:0,index:index+1>=variants.length?0:index+1,after:index+1>=variants.length&&data.productVariants.pageInfo.hasNextPage?data.productVariants.pageInfo.endCursor:index+1>=variants.length?null:cursor?.after||null};
-        await db.setJSON('shipping/private/context-cursor',nextVariant?catalogAdvance:{...cursor,version:2,queuedLast:false,index,destinationIndex,after:cursor?.after||null});
+        catalogAdvance={version:3,migrating:cursor.migrating&&index<1,queuedLast:false,destinationIndex:0,index:index+1>=variants.length?0:index+1,after:index+1>=variants.length&&data.productVariants.pageInfo.hasNextPage?data.productVariants.pageInfo.endCursor:index+1>=variants.length?null:cursor?.after||null};
+        await db.setJSON('shipping/private/context-cursor',nextVariant?catalogAdvance:{...cursor,version:3,queuedLast:false,index,destinationIndex,after:cursor?.after||null});
         if(variant){const source=supplierContext(variant);job={variantId:variant.id,sku:variant.sku,...source,destination:main?launchDestinations[destinationIndex]:source.browsing};}
         else job=queue?.items?.[0]||oldRoute;
       }else await db.setJSON('shipping/private/context-cursor',{...cursor,queuedLast:true});

@@ -22,7 +22,7 @@ function fixture(overrides={}){
  if(url.includes('myshopify.com'))return Response.json({data:{node:overrides.variant||variant}});
  if(url.includes('getAccessToken'))data={accessToken:'secret-token',accessTokenExpiryDate:'2099-01-01'};
  else if(url.includes('variant/query')){if(overrides.variantParameterError)return Response.json({result:false,code:1600300,message:'Param error'});data=[{vid:'cj-variant',variantSku:'CJTEST-1'}];}
- else if(url.includes('product/query'))data={variants:overrides.detailVariants||[{vid:'cj-variant',variantSku:'CJTEST-1'}]};
+ else if(url.includes('product/query'))data={variants:overrides.detailVariants||[{vid:'cj-variant',variantSku:'CJTEST-1',variantSellPrice:'1.52'}]};
  else if(url.includes('stock/query'))data=overrides.stock||[{countryCode:'DE',totalInventoryNum:10},{countryCode:'CN',totalInventoryNum:100}];
  else if(url.includes('freightCalculate'))data=(typeof overrides.methods==='function'?overrides.methods(JSON.parse(options.body)):overrides.methods)||[{logisticName:'CJPacket',logisticPrice:8.07,logisticAging:'3-5'}];
  return Response.json({result:true,code:200,data});};
@@ -37,12 +37,12 @@ test('Main catalog quotes China dispatch to the delivery country without country
  assert.equal(f.calls.find(c=>c.url.includes('myshopify.com')).body.variables.country,'DE');
  const freight=f.calls.find(c=>c.url.includes('freightCalculate')).body;
  assert.equal(freight.startCountryCode,'CN');assert.equal(freight.endCountryCode,'DE');
- assert.equal(result.pricing.unitPrice.amount,'20.90');assert.equal(result.pricing.checkoutReady,false);
+ assert.equal(result.pricing.unitPrice.amount,'24.90');assert.equal(result.pricing.checkoutReady,false);
  f.db.values.set('shipping/private/context-price/1/DE',{sku:item.sku,profileConfirmed:true,expiresAt:Date.now()+3600000,price:{amount:'17.90',currencyCode:'EUR'}});
  assert.equal((await(await f.handler(new Request(url))).json()).pricing.checkoutReady,false);
- f.db.values.set('shipping/private/context-price/1/DE',{sku:item.sku,profileConfirmed:true,expiresAt:Date.now()+3600000,price:{amount:'20.90',currencyCode:'EUR'}});
+ f.db.values.set('shipping/private/context-price/1/DE',{sku:item.sku,profileConfirmed:true,expiresAt:Date.now()+3600000,price:{amount:'24.90',currencyCode:'EUR'}});
  const confirmed=await(await f.handler(new Request(url))).json();
- assert.equal(confirmed.pricing.checkoutReady,true);assert.equal(confirmed.pricing.unitPrice.amount,'20.90');
+ assert.equal(confirmed.pricing.checkoutReady,true);assert.equal(confirmed.pricing.unitPrice.amount,'24.90');
  for(const code of ['DE','FR','NL','PL','ES','PT','IT','GR'])f.db.values.set('shipping/private/context-price/1/'+code,{sku:item.sku,profileConfirmed:true,expiresAt:Date.now()+3600000,price:{amount:'17.90',currencyCode:'EUR'}});
  const supplierCalls=f.calls.filter(c=>c.url.includes('cjdropshipping.com')).length;
  const countries=await(await f.handler(new Request(url+'&check=destinations&cached=1'))).json();

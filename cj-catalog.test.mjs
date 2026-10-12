@@ -5,6 +5,7 @@ import {launchDestinations} from './backend-cj-catalog.mjs';
 import {prepareSharedRoute,sharedProfile} from './backend-cj-profiles.mjs';
 import {createContextPricingJob} from './backend-context-job.mjs';
 import {requiredShippingScopes} from './backend-context-pricing.mjs';
+import {mainPricingPolicy} from './backend-included-pricing.mjs';
 test('CJ main catalog requires neither country nor category tags and preserves actual supplier identity',()=>{
   const product={vendor:'CJdropshipping',title:'Manual Six-Roller Neck Massager',status:'DRAFT',tags:[]};
   assert.deepEqual(supplierContext({sku:'CJAM130816105EV',product}),{browsing:'CN',category:'beauty'});
@@ -22,7 +23,7 @@ test('One-country price cannot open the shared eight-country route',async()=>{
 });
 test('All eight quotes and native prices are required, then one shared profile is reused',async()=>{
   const {db,values}=dbFixture(),now=Date.now(),writes=[];
-  for(const country of launchDestinations)values.set('shipping/private/cj-candidate/1/'+country,{sku,price,expiresAt:now+60000});
+  for(const country of launchDestinations)values.set('shipping/private/cj-candidate/1/'+country,{sku,price,policy:mainPricingPolicy,expiresAt:now+60000});
   const zone=country=>({zone:{countries:[{code:{countryCode:country,restOfWorld:false}}]},methodDefinitions:{nodes:[{active:true,methodConditions:[],rateProvider:{price:{amount:'0.00',currencyCode:'EUR'}}}]}});
   const profile={id:'shared',name:'VIZIMALL CJ — 8 destinations included',default:false,coversAllItems:false,profileLocationGroups:[{locationGroup:{locations:{nodes:[{id:'CJ'}],pageInfo:{hasNextPage:false}}},locationGroupZones:{nodes:launchDestinations.map(zone),pageInfo:{hasNextPage:false}}}]};
   const admin=async(q,v)=>{
@@ -67,7 +68,7 @@ test('Scheduled main catalog preparation visits all eight destinations and priva
     assert.equal(url.searchParams.get('country'),'CN');destinations.push(destination);
     return Response.json({status:'available',sku,from:'CN',destination,pricing:{unitPrice:price}});
   },prepare:async({destination})=>{
-    values.set('shipping/private/cj-candidate/1/'+destination,{sku,price,expiresAt:Date.now()+3600000});
+    values.set('shipping/private/cj-candidate/1/'+destination,{sku,price,policy:mainPricingPolicy,expiresAt:Date.now()+3600000});
     return {profileConfirmed:destinations.length===8,price};
   }});
   for(let i=0;i<8;i++){await run();assert.equal(publications,i===7?1:0);}
