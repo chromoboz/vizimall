@@ -1,0 +1,70 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {supplierContext} from './backend-context-pricing.mjs';
+import {launchDestinations} from './backend-cj-catalog.mjs';
+import {prepareSharedRoute,sharedProfile} from './backend-cj-profiles.mjs';
+import {createContextPricingJob} from './backend-context-job.mjs';
+import {requiredShippingScopes} from './backend-context-pricing.mjs';
+test('CJ main catalog requires neither country nor category tags and preserves actual supplier identity',()=>{
+  const product={vendor:'CJdropshipping',title:'Manual Six-Roller Neck Massager',status:'DRAFT',tags:[]};
+  assert.deepEqual(supplierContext({sku:'CJAM130816105EV',product}),{browsing:'CN',category:'beauty'});
+  assert.deepEqual(supplierContext({sku:'CJJT161368237KP',product:{...product,title:'G-Shaped LED Lamp'}}),{browsing:'CN',category:'home'});
+  assert.equal(supplierContext({sku:'CJAM130816105EV',product:{...product,status:'ARCHIVED'}}),null);
+  assert.equal(supplierContext({sku:'OTHER',product}),null);
+  assert.equal(supplierContext({sku:'CJAM130816105EV',product:{...product,vendor:'Kersten B.V.'}}),null);
+});
+const sku='CJTEST1',variantId='gid://shopify/ProductVariant/1',price={amount:'15.90',currencyCode:'EUR'};
+function dbFixture(){const values=new Map();return {values,db:{get:async k=>values.get(k),setJSON:async(k,v)=>values.set(k,v)}};}
+test('One-country price cannot open the shared eight-country route',async()=>{
+  const {db}=dbFixture();
+  const record=await prepareSharedRoute({admin:()=>{throw Error('No native route may open yet');},db,fields:'id',variantId,sku,destination:'DE',price,locationId:'CJ'});
+  assert.equal(record.profileConfirmed,false);
+});
+test('All eight quotes and native prices are required, then one shared profile is reused',async()=>{
+  const {db,values}=dbFixture(),now=Date.now(),writes=[];
+  for(const country of launchDestinations)values.set('shipping/private/cj-candidate/1/'+country,{sku,price,expiresAt:now+60000});
+  const zone=country=>({zone:{countries:[{code:{countryCode:country,restOfWorld:false}}]},methodDefinitions:{nodes:[{active:true,methodConditions:[],rateProvider:{price:{amount:'0.00',currencyCode:'EUR'}}}]}});
+  const profile={id:'shared',name:'VIZIMALL CJ — 8 destinations included',default:false,coversAllItems:false,profileLocationGroups:[{locationGroup:{locations:{nodes:[{id:'CJ'}],pageInfo:{hasNextPage:false}}},locationGroupZones:{nodes:launchDestinations.map(zone),pageInfo:{hasNextPage:false}}}]};
+  const admin=async(q,v)=>{
+    if(q.includes('contextualPricing'))return {node:{sku,contextualPricing:{price}}};
+    if(q.includes('deliveryProfiles('))return {deliveryProfiles:{nodes:[profile],pageInfo:{hasNextPage:false}}};
+    if(q.includes('deliveryProfileUpdate(')){writes.push(v);return {deliveryProfileUpdate:{profile:{id:'shared'},userErrors:[]}};}
+    return {node:{sku,deliveryProfile:profile}};
+  };
+  const args={admin,db,fields:'id',variantId,sku,destination:'DE',price,locationId:'CJ',now};
+  assert.equal((await prepareSharedRoute(args)).profileConfirmed,true);
+  assert.equal(writes.length,1);assert.deepEqual(writes[0].profile,{variantsToAssociate:[variantId]});
+  for(const country of launchDestinations)assert.equal(values.get('shipping/private/context-price/1/'+country).profileConfirmed,true);
+  values.get('shipping/private/cj-candidate/1/FR').expiresAt=0;
+  writes.length=0;assert.equal((await prepareSharedRoute(args)).profileConfirmed,false);assert.equal(writes.length,0);
+});
+test('A malformed shared profile cannot receive any variant',async()=>{
+  let mutated=false;
+  const admin=async q=>{if(q.startsWith('mutation')){mutated=true;throw Error('unsafe association');}return{deliveryProfiles:{nodes:[{id:'bad',name:'VIZIMALL CJ — 8 destinations included',default:false,coversAllItems:false,profileLocationGroups:[]}],pageInfo:{hasNextPage:false}}};};
+  await assert.rejects(sharedProfile({admin,fields:'id',locationId:'CJ',ready:true,variantIds:[variantId]}),/not confirmed/);
+  assert.equal(mutated,false);
+});
+test('Scheduled main catalog preparation visits all eight destinations and privately resolves drafts',async()=>{
+  const {db,values}=dbFixture();
+  db.getWithMetadata=async k=>values.has(k)?{data:values.get(k),etag:'1'}:null;
+  const original=db.setJSON;db.setJSON=async(k,v)=>{await original(k,v);return {modified:true};};
+  const product={id:'gid://shopify/Product/1',vendor:'CJdropshipping',title:'Neck Massager',status:'DRAFT',tags:[]};
+  values.set('shipping/private/cj-held/1',{preparedAt:Date.now()});
+  const variant={id:variantId,sku,price:'5.90',product,contextualPricing:{price:{amount:'5.90',currencyCode:'EUR'}}};
+  const destinations=[];
+  const admin=async q=>{
+    if(q.includes('currentAppInstallation'))return {currentAppInstallation:{accessScopes:requiredShippingScopes.map(handle=>({handle}))}};
+    if(q.includes('productVariants('))return {productVariants:{nodes:[variant],pageInfo:{hasNextPage:false}}};
+    return {shop:{currencyCode:'EUR'},node:variant};
+  };
+  const run=createContextPricingJob({production:true,env:{VIZIMALL_NATIVE_SHIPPING_ENABLED:'true'},storefrontConfig:{domain:'example.myshopify.com'},dbFactory:async()=>db,adminFactory:()=>admin,shippingFactory:options=>async req=>{
+    const resolved=await options.variantResolver(variantId,'DE');
+    assert.equal(resolved.product.status,'DRAFT');assert.equal(resolved.price.amount,'5.90');
+    const url=new URL(req.url),destination=url.searchParams.get('shipping');
+    assert.equal(url.searchParams.get('country'),'CN');destinations.push(destination);
+    return Response.json({status:'available',sku,from:'CN',destination,pricing:{unitPrice:price}});
+  },prepare:async()=>({profileConfirmed:false})});
+  for(let i=0;i<8;i++)await run();
+  assert.deepEqual(destinations,launchDestinations);
+  assert.equal(values.get('shipping/private/context-last-run').status,'preparing_countries');
+});

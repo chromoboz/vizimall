@@ -34,6 +34,16 @@ export function includedPrice({ baseUnitPrice, quantity = 1, supplierCost, fx, n
     includedShipping: convertedShipping, lineTotal: money(baseCents * BigInt(quantity) + shippingCents, baseUnitPrice.currencyCode),
     customerShippingCharge: money(0n, baseUnitPrice.currencyCode), fxDate: supplierCost.currencyCode === baseUnitPrice.currencyCode || !shippingCents ? null : fx.date };
 }
+export function mainCatalogPrice(args){
+  const unit=includedPrice({...args,quantity:1});
+  const base=BigInt(unit.baseUnitPrice.amount.replace('.',''));
+  const shipping=BigInt(unit.includedShipping.amount.replace('.',''));
+  // A modest reserve covers charges on freight as well as the product. These
+  // are merchant pricing assumptions, not a statement of actual tax liability.
+  const total=base+(shipping*130n+99n)/100n;
+  const rounded=total<=90n?90n:((total-90n+99n)/100n)*100n+90n;
+  return {...unit,lineTotal:money(rounded,unit.baseUnitPrice.currencyCode)};
+}
 export function baselineForSync(currentPrice, previous) {
   const normalized = convertCost(currentPrice, currentPrice.currencyCode);
   // An unchanged synchronized price retains its original base. A merchant edit

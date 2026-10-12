@@ -1,7 +1,12 @@
 import './shipping-destinations.js';
+import {mainCatalogContext,launchDestinations} from './backend-cj-catalog.mjs';
+import {prepareSharedRoute,sharedProfile,sharedReadyProfileName} from './backend-cj-profiles.mjs';
 const countries={DE:'germany',GR:'greece',NL:'netherlands',FR:'france',IT:'italy',ES:'spain',PL:'poland',PT:'portugal'};
 export const requiredShippingScopes=['read_products','write_products','read_markets','write_markets','read_shipping','write_shipping','read_locations'];
 export function supplierContext(variant){
+  if (/^CJ[A-Za-z0-9 _-]{3,190}$/.test(variant?.sku||'')) {
+    const main=mainCatalogContext(variant?.product); if(main)return main;
+  }
   const tags=variant?.product?.tags||[];
   const countryTags=tags.filter(t=>t.startsWith('country-'));
   const browsing=Object.keys(countries).find(code=>countryTags.length===1&&countryTags[0]==='country-'+countries[code]);
@@ -11,7 +16,7 @@ export function supplierContext(variant){
 function payload(data,key){const result=data?.[key];if(!result||result.userErrors?.length)throw Error('Shopify destination configuration was not confirmed');return result;}
 function sameMoney(a,b){return a?.currencyCode===b?.currencyCode&&Number(a.amount)===Number(b.amount);}
 const marketFields=`id name status conditions{conditionTypes regionsCondition{regions(first:250){nodes{... on MarketRegionCountry{code}} pageInfo{hasNextPage}}}} catalogs(first:100){nodes{id title status priceList{id currency}} pageInfo{hasNextPage}}`;
-const profileFields=`id name default coversAllItems profileLocationGroups{locationGroup{id locations(first:250,includeLegacy:true){nodes{id} pageInfo{hasNextPage}}} locationGroupZones(first:250){nodes{zone{id countries{code{countryCode restOfWorld}}} methodDefinitions(first:10){nodes{id active name methodConditions{__typename} rateProvider{... on DeliveryRateDefinition{price{amount currencyCode}}}} pageInfo{hasNextPage}}} pageInfo{hasNextPage}}}`;
+export const profileFields=`id name default coversAllItems profileLocationGroups{locationGroup{id locations(first:250,includeLegacy:true){nodes{id} pageInfo{hasNextPage}}} locationGroupZones(first:250){nodes{zone{id countries{code{countryCode restOfWorld}}} methodDefinitions(first:10){nodes{id active name methodConditions{__typename} rateProvider{... on DeliveryRateDefinition{price{amount currencyCode}}}} pageInfo{hasNextPage}}} pageInfo{hasNextPage}}}`;
 function cjLocation(services){
   // The service registry is independent of a profile's assigned/unassigned
   // location lists. Legacy app locations can disappear from those lists after
@@ -32,10 +37,11 @@ export async function prepareDestinationPrice({admin,db,variantId,expectedSku,br
   if(!/^gid:\/\/shopify\/ProductVariant\/\d+$/.test(variantId||'')||!globalThis.VizimallDestinations.valid(destination)||quote?.status!=='available'||quote.sku!==expectedSku||quote.from!==browsing||quote.destination!==destination||quote.quantity!==1||!Number.isFinite(quote.expiresAt)||quote.expiresAt<=now||!quote.pricing?.unitPrice)throw Error('Fresh destination shipping quote required');
   const price=quote.pricing.unitPrice;
   if(price.currencyCode!=='EUR'||!/^\d+\.\d{2}$/.test(price.amount))throw Error('Destination currency requires configuration');
-  const read=()=>admin(`query($id:ID!,$country:CountryCode!){shop{currencyCode} node(id:$id){... on ProductVariant{id sku price product{id tags status} contextualPricing(context:{country:$country}){price{amount currencyCode}} deliveryProfile{${profileFields}}}}}`,{id:variantId,country:destination});
+  const read=()=>admin(`query($id:ID!,$country:CountryCode!){shop{currencyCode} node(id:$id){... on ProductVariant{id sku price product{id tags status vendor productType title} contextualPricing(context:{country:$country}){price{amount currencyCode}} deliveryProfile{${profileFields}}}}}`,{id:variantId,country:destination});
   onStage('variant_profile');
   const current=await read(),variant=current.node;
   if(variant?.sku!==expectedSku||current.shop?.currencyCode!=='EUR'||JSON.stringify(supplierContext(variant))!==JSON.stringify({browsing,category}))throw Error('Supplier tags or variant changed');
+  if(mainCatalogContext(variant.product)&&!launchDestinations.includes(destination))throw Error('Destination outside launch countries');
   const baseline=await db.get('shipping/private/base-price/'+variantId.split('/').at(-1),{type:'json'});
   if(baseline?.globalLastSeen!==variant.price)throw Error('Merchant base price changed');
   // Country-only markets. Do not reuse a regional market for a per-country price,
@@ -70,6 +76,11 @@ export async function prepareDestinationPrice({admin,db,variantId,expectedSku,br
   // closed; no fallback to a rest-of-world free-shipping rate.
   const beforeProfile=await read();
   if(beforeProfile.node?.sku!==expectedSku||JSON.stringify(beforeProfile.node?.product)!==JSON.stringify(variant.product)||!sameMoney(beforeProfile.node?.contextualPricing?.price,price))throw Error('Native country price not confirmed; shipping remains unchanged');
+  if(mainCatalogContext(variant.product)){
+    if(!launchDestinations.includes(destination))throw Error('Destination outside launch countries');
+    const locationId=cjLocation((await admin(`query{shop{fulfillmentServices{handle serviceName location{id}}}}`)).shop?.fulfillmentServices);
+    return prepareSharedRoute({admin,db,fields:profileFields,variantId,sku:expectedSku,destination,price,locationId,now});
+  }
   const name='Vizimall CJ route '+variantId.split('/').at(-1);
   const owned=variant.deliveryProfile?.name===name&&!variant.deliveryProfile.default&&!variant.deliveryProfile.coversAllItems;
   const existing=variant.deliveryProfile;
@@ -109,6 +120,13 @@ export async function revokeDestination({admin,db,variantId,destination}){
   await db.setJSON('shipping/private/context-price/'+variantId.split('/').at(-1)+'/'+destination,{expiresAt:0,profileConfirmed:false});
   const data=await admin(`query($id:ID!){node(id:$id){... on ProductVariant{deliveryProfile{${profileFields}}}}}`,{id:variantId});
   const profile=data.node?.deliveryProfile;
+  if(profile?.name===sharedReadyProfileName){
+    await db.setJSON('shipping/private/cj-candidate/'+variantId.split('/').at(-1)+'/'+destination,{expiresAt:0});
+    for(const country of launchDestinations)await db.setJSON('shipping/private/context-price/'+variantId.split('/').at(-1)+'/'+country,{expiresAt:0,profileConfirmed:false});
+    const locationId=cjLocation((await admin(`query{shop{fulfillmentServices{handle serviceName location{id}}}}`)).shop?.fulfillmentServices);
+    await sharedProfile({admin,fields:profileFields,locationId,variantIds:[variantId]});
+    return;
+  }
   if(!profile||profile.name!=='Vizimall CJ route '+variantId.split('/').at(-1)||profile.default||profile.coversAllItems)return;
   const zones=(profile.profileLocationGroups||[]).flatMap(g=>g.locationGroupZones.nodes).filter(z=>z.zone.countries.some(c=>c.code.countryCode===destination)).map(z=>z.zone.id);
   if(zones.length)payload(await admin(`mutation($id:ID!,$profile:DeliveryProfileInput!){deliveryProfileUpdate(id:$id,profile:$profile){profile{id} userErrors{field message}}}`,{id:profile.id,profile:{zonesToDelete:zones}}),'deliveryProfileUpdate');

@@ -8,6 +8,12 @@ const variantId = 'gid://shopify/ProductVariant/11';
 const variant = { id: variantId, title: 'Black', availableForSale: true, price: { amount: '12.50', currencyCode: 'EUR' } };
 const item = { id: productId, title: 'Lamp', tags: ['country-germany', 'store-tech'], variants: { nodes: [variant], pageInfo: { hasNextPage: false, endCursor: 'last' } } };
 const line = { productId, variantId, store: 'tech', quantity: 2 };
+test('CJ main catalog infers the display category independently of delivery country and needs no routing tags',()=>{
+ const product={vendor:'CJdropshipping',title:'Manual Neck Massager',tags:[]};
+ for(const country of Object.keys(api.countries))assert.equal(api.matches(product,country,'beauty'),true);
+ assert.equal(api.matches(product,'DE','home'),false);assert.equal(api.productOrigin(product),'CN');
+ assert.equal(api.matches({...product,vendor:'Other'},'DE','beauty'),false);
+});
 test('Only usable hosted MP4 videos are rendered, with safe posters and no external embeds', () => {
   const media = [
     {mediaContentType:'EXTERNAL_VIDEO',sources:[{mimeType:'video/mp4',url:'https://example.com/embed'}]},
@@ -56,7 +62,7 @@ test('Rejects secret tokens and untrusted endpoints', () => {
 });
 test('Server filtering, country context, pagination and stale-index protection', async () => {
   const client = mock(({ variables }) => {
-    assert.deepEqual(variables, { country: 'DE', language: 'DE', filter: 'tag:store-tech', after: 'page-one' });
+    assert.deepEqual(variables, { country: 'DE', language: 'DE', filter: '(vendor:CJdropshipping OR tag:store-tech)', after: 'page-one' });
     return { data: { products: { nodes: [item, { ...item, tags: ['country-france','store-home'] }], pageInfo: { hasNextPage: true, endCursor: 'page-two' } } } };
   });
   const result = await client.products('DE','tech','page-one');
@@ -131,14 +137,14 @@ test('Search and global price sorting keep pages small and omit detail payloads'
     assert.match(query, /products\(first: 24/);
     assert.match(query, /sortKey: PRICE, reverse: true/);
     assert.doesNotMatch(query, /description|images\(|variants\(/);
-    assert.equal(variables.filter, 'tag:store-tech AND title:"Lamp"* AND available_for_sale:true');
+    assert.equal(variables.filter, '(vendor:CJdropshipping OR tag:store-tech) AND title:"Lamp"* AND available_for_sale:true');
     return {data:{products:{nodes:[item],pageInfo:{hasNextPage:false,endCursor:'last'}}}};
   });
   await client.products('DE','tech',null,{search:'Lamp',sort:'high',inStock:true});
 });
 test('User search punctuation is escaped instead of changing country/store constraints', async () => {
   const client = mock(({variables}) => {
-    assert.ok(variables.filter.startsWith('tag:store-tech AND title:'));
+    assert.ok(variables.filter.startsWith('(vendor:CJdropshipping OR tag:store-tech) AND title:'));
     assert.ok(variables.filter.includes('\\"'));
     assert.ok(variables.filter.includes('\\:'));
     return {data:{products:{nodes:[],pageInfo:{hasNextPage:false,endCursor:null}}}};

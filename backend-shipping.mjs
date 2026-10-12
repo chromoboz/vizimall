@@ -2,14 +2,15 @@ import { store, limit, hash, update } from './backend-persistence.mjs';
 import './shipping-destinations.js';
 import {auditedDestinations} from './backend-destination-audit.mjs';
 import { discoverDestinations, enqueueDestinationDiscovery } from './backend-destinations.mjs';
-import { baselineForSync, cheapestMethod, includedPrice, parseEcbRates, shippingMethods } from './backend-included-pricing.mjs';
+import { baselineForSync, cheapestMethod, includedPrice, mainCatalogPrice, parseEcbRates, shippingMethods } from './backend-included-pricing.mjs';
 import {createAutoDSQuote} from './backend-autods-shipping.mjs';
-const countries = {DE:'germany',NL:'netherlands',FR:'france',GR:'greece',IT:'italy',PL:'poland',PT:'portugal',ES:'spain'};
+import {mainCatalogContext,launchDestinations} from './backend-cj-catalog.mjs';
+const countries = {CN:'china',DE:'germany',NL:'netherlands',FR:'france',GR:'greece',IT:'italy',PL:'poland',PT:'portugal',ES:'spain'};
 const stores = ['tech','home','pets','beauty','fashion','kids','auto'];
 const cjBase = 'https://developers.cjdropshipping.com/api2.0/v1/';
 const cacheMs = 300000;
 const quoteCacheMs = 6 * 60 * 60 * 1000;
-export function createShippingHandler({dbFactory=store, fetcher=fetch, env=process.env, storefrontConfig, probeSku='CJQT25986940004',probeSkus=[],pricing=false,catalogMetadata=false,allowUnavailable=false,supplierPacingMs=1100,discoveryBudgetMs=14000,autodsAdminFactory}={}) {
+export function createShippingHandler({dbFactory=store, fetcher=fetch, env=process.env, storefrontConfig, probeSku='CJQT25986940004',probeSkus=[],pricing=false,catalogMetadata=false,allowUnavailable=false,supplierPacingMs=1100,discoveryBudgetMs=14000,autodsAdminFactory,variantResolver}={}) {
   let tokenPending, supplierDb;
   const autodsQuote=createAutoDSQuote({storefrontConfig,env,fetcher,adminFactory:autodsAdminFactory});
   async function cj(path, token, body, timeoutMs=12000) {
@@ -73,8 +74,9 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
     try{return await tokenPending;}finally{tokenPending=null;}
   }
   async function product(id, country) {
+    if(variantResolver)return variantResolver(id,country);
     const settings=storefrontConfig;
-    const response=await fetcher(`https://${settings.domain}/api/${settings.apiVersion}/graphql.json`,{method:'POST',redirect:'error',signal:AbortSignal.timeout(10000),headers:{'Content-Type':'application/json','X-Shopify-Storefront-Access-Token':settings.publicToken},body:JSON.stringify({query:`query($id:ID!,$country:CountryCode!) @inContext(country:$country){node(id:$id){... on ProductVariant{id sku availableForSale quantityAvailable price{amount currencyCode} product{id tags}}}}`,variables:{id,country}})});
+    const response=await fetcher(`https://${settings.domain}/api/${settings.apiVersion}/graphql.json`,{method:'POST',redirect:'error',signal:AbortSignal.timeout(10000),headers:{'Content-Type':'application/json','X-Shopify-Storefront-Access-Token':settings.publicToken},body:JSON.stringify({query:`query($id:ID!,$country:CountryCode!) @inContext(country:$country){node(id:$id){... on ProductVariant{id sku availableForSale quantityAvailable price{amount currencyCode} product{id tags vendor productType title}}}}`,variables:{id,country}})});
     const body=await response.json();if(!response.ok||body.errors||!body.data?.node)throw new Error('Product unavailable');
     return body.data.node;
   }
@@ -135,8 +137,11 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
       const db=await dbFactory(req);supplierDb=db;
       await limit(db,'shipping:'+ (context.ip||'unknown'),60,60000);
       // Recheck current Shopify eligibility before returning even a cached quote.
-      const variant=await product(id,browsing);
-      if((!variant.availableForSale&&!allowUnavailable&&url.searchParams.get('check')!=='destinations')||![`country-${countries[browsing]}`,`store-${category}`].every(tag=>variant.product.tags.includes(tag)))return reply({status:'unavailable',methods:[]});
+      const variant=await product(id,browsing==='CN'?(launchDestinations.includes(destination)?destination:'DE'):browsing);
+      const main=mainCatalogContext(variant.product);
+      const eligible=main ? main.browsing===browsing&&main.category===category : [`country-${countries[browsing]}`,`store-${category}`].every(tag=>variant.product.tags.includes(tag));
+      if((!variant.availableForSale&&!allowUnavailable&&url.searchParams.get('check')!=='destinations')||!eligible)return reply({status:'unavailable',methods:[]});
+      if(main&&url.searchParams.get('check')!=='destinations'&&!launchDestinations.includes(destination))return reply({status:'unavailable',methods:[]});
       if(!/^CJ[A-Za-z0-9 _-]{3,190}$/.test(variant.sku||''))return reply(await autodsQuote({variant,browsing,destination,category,quantity,discovery:url.searchParams.get('check')==='destinations'}));
       if(!env.CJ_API_KEY)return reply({status:'not_connected',methods:[]});
       if(url.searchParams.get('check')==='destinations'&&url.searchParams.get('cached')==='1'){
@@ -144,7 +149,8 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
         const discoveryKey='shipping/private/destinations/'+hash(JSON.stringify([id,variant.sku,browsing,quantity]));
         const state=await db.get(discoveryKey,{type:'json'});
         const fresh=state?.expiresAt>Date.now();
-        return reply({status:fresh&&state.checked.length===globalThis.VizimallDestinations.codes.length?'complete':'discovering',destinations:[...new Set([...(fresh?state.available:[]),...auditedDestinations({sku:variant.sku,from:browsing,quantity,state})])].filter(c=>globalThis.VizimallDestinations.valid(c)),expiresAt:fresh?state.expiresAt:Date.now()+60000,retryAfterMs:8000});
+        const codes=main?launchDestinations:globalThis.VizimallDestinations.codes;
+        return reply({status:fresh&&codes.every(c=>state.checked.includes(c))?'complete':'discovering',destinations:[...new Set([...(fresh?state.available:[]),...auditedDestinations({sku:variant.sku,from:browsing,quantity,state})])].filter(c=>codes.includes(c)),expiresAt:fresh?state.expiresAt:Date.now()+60000,retryAfterMs:8000});
       }
       const key='shipping/quotes/v2/'+hash(JSON.stringify([id,variant.sku,destination,browsing,category,requestedOrigin||browsing,quantity,pricing,catalogMetadata]));
       const cached=await db.get(key,{type:'json'});
@@ -175,7 +181,7 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
       if(url.searchParams.get('check')==='destinations'){
         await limit(db,'shipping:discovery:'+(context.ip||'unknown'),20,60000);
         const discoveryKey='shipping/private/destinations/'+hash(JSON.stringify([id,variant.sku,from,quantity]));
-        return reply(await discoverDestinations({db,key:discoveryKey,budgetMs:discoveryBudgetMs,codes:globalThis.VizimallDestinations.codes,priority:[from,destination,'GR','GB','US','BE','BG','NL','IT','CZ','EE','LT','LU','HR','LV','HU','SI','SK','IE','FR','ES','AT','PL','PT','RO','DK','FI','SE','GB','US'],probe:async(code,timeoutMs)=>{
+        return reply(await discoverDestinations({db,key:discoveryKey,budgetMs:discoveryBudgetMs,codes:main?launchDestinations:globalThis.VizimallDestinations.codes,priority:[from,destination,'GR','GB','US','BE','BG','NL','IT','CZ','EE','LT','LU','HR','LV','HU','SI','SK','IE','FR','ES','AT','PL','PT','RO','DK','FI','SE','GB','US'],probe:async(code,timeoutMs)=>{
           await limit(db,'shipping:discovery-freight',60,60000);
           const methods=shippingMethods(await cj('logistic/freightCalculate',access,{startCountryCode:from,endCountryCode:code,products:[{vid:matched.vid,quantity}]},timeoutMs));
           return methods.length>0;
@@ -211,7 +217,7 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
           if(!response.ok)throw new Error('Currency rates unavailable');
           fx={...parseEcbRates(await response.text()),refreshedAt:Date.now()};await db.setJSON(fxKey,fx);
         }
-        const unit=includedPrice({baseUnitPrice:base,supplierCost:standard.supplierCost,fx});
+        const unit=(main?mainCatalogPrice:includedPrice)({baseUnitPrice:base,supplierCost:standard.supplierCost,fx});
         const cents=BigInt(unit.lineTotal.amount.replace('.',''))*BigInt(quantity);
         const lineTotal={amount:(cents/100n)+'.'+String(cents%100n).padStart(2,'0'),currencyCode:base.currencyCode};
         const ready=await db.get('shipping/private/context-price/'+id.split('/').at(-1)+'/'+destination,{type:'json'});

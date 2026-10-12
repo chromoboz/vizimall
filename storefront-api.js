@@ -5,16 +5,23 @@
   const countries = Object.freeze({ DE: 'germany', FR: 'france', NL: 'netherlands', PL: 'poland', ES: 'spain', PT: 'portugal', IT: 'italy', GR: 'greece' });
   const stores = Object.freeze(['tech', 'home', 'pets', 'beauty', 'fashion', 'kids', 'auto']);
   const languages = Object.freeze({ DE:'DE', GR:'EL', FR:'FR', IT:'IT', ES:'ES', NL:'NL', PL:'PL', PT:'PT_PT' });
+  function mainCategory(product){
+    if(String(product?.vendor||'').toLowerCase()!=='cjdropshipping')return null;
+    const text=`${product.productType||''} ${product.title||''}`.toLowerCase();
+    return /massage|beauty|skin|hair/.test(text)?'beauty':/lamp|lighting|home|kitchen/.test(text)?'home':/pet|cat|dog/.test(text)?'pets':/toy|kids|child/.test(text)?'kids':/car |auto/.test(text)?'auto':/clothing|fashion|dress/.test(text)?'fashion':'tech';
+  }
   const productStore = (product, country) => stores.find(store => matches(product, country, store));
   function routing(country, store) {
-    if (!Object.hasOwn(countries, country) || !stores.includes(store)) throw new Error('Please select a country and store from the mall.');
-    return { countryTag: `country-${countries[country]}`, storeTag: `store-${store}` };
+    if (!(Object.hasOwn(countries, country)||country==='CN') || !stores.includes(store)) throw new Error('Please select a country and store from the mall.');
+    return { countryTag: `country-${country==='CN'?'china':countries[country]}`, storeTag: `store-${store}` };
   }
   function matches(product, country, store) {
     const { countryTag, storeTag } = routing(country, store);
+    const main=mainCategory(product);if(main)return main===store;
     return Array.isArray(product.tags) && product.tags.includes(storeTag);
   }
   const productOrigin = product => {
+    if(mainCategory(product))return 'CN';
     const origins = Object.keys(countries).filter(code => product?.tags?.includes(`country-${countries[code]}`));
     return origins.length === 1 ? origins[0] : null;
   };
@@ -26,7 +33,7 @@
       return source ? { url: safeUrl(source.url), poster: safeUrl(item.previewImage?.url), alt: item.alt || '' } : null;
     }).filter(Boolean).slice(0, 5);
   }
-  const languageFor = country => root.VizimallLocale ? ({en:'EN',de:'DE',el:'EL',fr:'FR',it:'IT',es:'ES',nl:'NL',pl:'PL','pt-PT':'PT_PT'})[root.VizimallLocale.language] || 'EN' : languages[country];
+  const languageFor = country => root.VizimallLocale ? ({en:'EN',de:'DE',el:'EL',fr:'FR',it:'IT',es:'ES',nl:'NL',pl:'PL','pt-PT':'PT_PT'})[root.VizimallLocale.language] || 'EN' : languages[country] || 'EN';
   function createClient(config, fetcher = root.fetch.bind(root)) {
     if (!config || !/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(config.domain) || !config.publicToken || /^(shpat_|shpca_|shpss_|shppa_)/i.test(config.publicToken)) {
       throw new Error('The store connection is unavailable. Please try again later.');
@@ -57,14 +64,14 @@
         throw error;
       } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
     }
-    const productFields = 'id title description tags availableForSale featuredImage { url altText } priceRange { minVariantPrice { amount currencyCode } }';
+    const productFields = 'id title vendor productType description tags availableForSale featuredImage { url altText } priceRange { minVariantPrice { amount currencyCode } }';
     const variantFields = 'id title selectedOptions { name value } availableForSale quantityAvailable currentlyNotInStock price { amount currencyCode } image { url altText }';
     async function products(country, store, after = null, options = {}) {
       const { countryTag, storeTag } = routing(country, store === 'all' ? stores[0] : store);
       const shippingCountry = options.shippingCountry || country;
       if (!validDestination(shippingCountry)) throw new Error('Choose a supported delivery country.');
       // Collection tags identify the supplier's storefront, not destinations.
-      const terms = [store === 'all' ? '(' + stores.map(value => 'tag:store-' + value).join(' OR ') + ')' : 'tag:' + storeTag];
+      const terms = ['(vendor:CJdropshipping OR '+(store === 'all' ? stores.map(value => 'tag:store-' + value).join(' OR ') : 'tag:' + storeTag)+')'];
       const quote = value => '"' + value.replace(/[\\"():*]/g, character => '\\' + character) + '"';
       for (const word of String(options.search || '').trim().split(/\s+/).filter(Boolean)) terms.push('title:' + quote(word) + '*');
       if (options.inStock) terms.push('available_for_sale:true');

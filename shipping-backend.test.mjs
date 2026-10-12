@@ -28,6 +28,19 @@ function fixture(overrides={}){
  return Response.json({result:true,code:200,data});};
  return {calls,db,handler:createShippingHandler({dbFactory:async()=>db,fetcher,env:{CJ_API_KEY:'test-secret'},storefrontConfig:settings,probeSku:'CJTEST-1',pricing:overrides.pricing||false,allowUnavailable:overrides.allowUnavailable||false,supplierPacingMs:0})};
 }
+test('Main catalog quotes China dispatch to the delivery country without country/store tags',async()=>{
+ const item={...variant,price:{amount:'5.90',currencyCode:'EUR'},product:{vendor:'CJdropshipping',title:'Manual Neck Massager',tags:[]}};
+ const f=fixture({variant:item,pricing:true,methods:[{logisticName:'CJPacket',logisticPrice:'9.90',logisticAging:'8-18'}]});
+ const url='https://vizimall.com/api/shipping?variant=gid://shopify/ProductVariant/1&country=CN&shipping=DE&store=beauty';
+ const result=await (await f.handler(new Request(url))).json();
+ assert.equal(result.status,'available');assert.equal(result.from,'CN');assert.equal(result.destination,'DE');
+ assert.equal(f.calls.find(c=>c.url.includes('myshopify.com')).body.variables.country,'DE');
+ const freight=f.calls.find(c=>c.url.includes('freightCalculate')).body;
+ assert.equal(freight.startCountryCode,'CN');assert.equal(freight.endCountryCode,'DE');
+ assert.equal(result.pricing.unitPrice.amount,'17.90');assert.equal(result.pricing.checkoutReady,false);
+ const outside=await (await f.handler(new Request(url.replace('shipping=DE','shipping=US')))).json();
+ assert.equal(outside.status,'unavailable');
+});
 test('Parallel identical quotes share work across shoppers and default/explicit origin',async()=>{
  const f=fixture();
  const results=await Promise.all(Array.from({length:8},(_,i)=>f.handler(new Request(base+(i%2?'&from=DE&quantity=1':'')),{ip:String(i)}).then(r=>r.json())));
@@ -106,7 +119,11 @@ test('Connection check validates supplier authentication without disclosing cred
 test('Supplier smoke check exercises live freight without publishing a Shopify draft',async()=>{
  const {handler,calls}=fixture();const result=await (await handler(new Request('https://vizimall.com/.netlify/functions/shipping?check=supplier-sample'),{ip:'test'})).json();
  assert.equal(result.status,'available');assert.equal(result.destination,'DE');assert.equal(result.from,'DE');assert.ok(!calls.some(c=>c.url.includes('myshopify.com')));assert.ok(!JSON.stringify(result).includes('secret'));
- const noStock=fixture({stock:[{countryCode:'CN',totalInventoryNum:100}]});
+ const china=fixture({stock:[{countryCode:'CN',totalInventoryNum:100}]});
+ const chinaQuote=await (await china.handler(new Request('https://vizimall.com/.netlify/functions/shipping?check=supplier-sample&from=CN'))).json();
+ assert.equal(chinaQuote.status,'available');assert.equal(chinaQuote.from,'CN');
+ assert.equal(china.calls.find(c=>c.url.includes('freightCalculate')).body.startCountryCode,'CN');
+ const noStock=fixture({stock:[{countryCode:'CN',totalInventoryNum:0}]});
  assert.equal((await (await noStock.handler(new Request('https://vizimall.com/.netlify/functions/shipping?check=supplier-sample'))).json()).status,'no_verified_eu_stock');
  assert.ok(!noStock.calls.some(c=>c.url.includes('freightCalculate')));
 });

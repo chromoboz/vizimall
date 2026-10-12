@@ -6,7 +6,7 @@ const item={id:'gid://shopify/Product/1',tags:['country-germany','country-greece
 const client=reply=>globalThis.VizimallStorefront.createClient(config,async(u,o)=>({ok:true,json:async()=>({data:reply(JSON.parse(o.body))})}));
 test('Delivery country does not add products to another supplier storefront',async()=>{
  const german={...item,tags:['country-germany','store-tech']};
- const c=client(({variables})=>{assert.equal(variables.country,'GR');assert.equal(variables.filter,'tag:store-tech');return {products:{nodes:[german,{...item,tags:['country-greece','store-tech']}],pageInfo:{hasNextPage:false}}};});
+ const c=client(({variables})=>{assert.equal(variables.country,'GR');assert.equal(variables.filter,'(vendor:CJdropshipping OR tag:store-tech)');return {products:{nodes:[german,{...item,tags:['country-greece','store-tech']}],pageInfo:{hasNextPage:false}}};});
  assert.deepEqual((await c.products('DE','tech',null,{shippingCountry:'GR'})).products,[german,{...item,tags:['country-greece','store-tech']}]);
  assert.equal(globalThis.VizimallStorefront.matches(german,'GR','tech'),true);
 });
