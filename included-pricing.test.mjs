@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import { includedPrice, mainCatalogPrice, baselineForSync, cheapestMethod, parseEcbRates } from './backend-included-pricing.mjs';
 const now = Date.parse('2026-10-06T10:00:00Z');
 const fx = { date: '2026-10-05', rates: { USD: '1.1204', PLN: '4.3' } };
-test('Shared campaign reserve retains at least EUR 3 under the declared planning assumptions',()=>{
+test('Shared campaign adds a flat EUR 3 per item without tax gross-up',()=>{
   const args={baseUnitPrice:{amount:'5.90',currencyCode:'EUR'},supplierCost:{amount:'0',currencyCode:'EUR'}};
   const price=mainCatalogPrice(args);
-  assert.equal(price.lineTotal.amount,'10.90');
-  assert.ok((Number(price.lineTotal.amount)-5.9)*(1/1.2-.04-.05)>=3);
+  assert.equal(price.lineTotal.amount,'8.90');
+  assert.equal(mainCatalogPrice({...args,supplierCost:{amount:'10.00',currencyCode:'EUR'}}).lineTotal.amount,'21.90');
   assert.equal(mainCatalogPrice({...args,quantity:3}).lineTotal.amount,price.lineTotal.amount);
   assert.throws(()=>mainCatalogPrice({...args,baseUnitPrice:{amount:'5.90',currencyCode:'USD'}}));
 });

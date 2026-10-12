@@ -37,12 +37,12 @@ test('Main catalog quotes China dispatch to the delivery country without country
  assert.equal(f.calls.find(c=>c.url.includes('myshopify.com')).body.variables.country,'DE');
  const freight=f.calls.find(c=>c.url.includes('freightCalculate')).body;
  assert.equal(freight.startCountryCode,'CN');assert.equal(freight.endCountryCode,'DE');
- assert.equal(result.pricing.unitPrice.amount,'21.90');assert.equal(result.pricing.checkoutReady,false);
+ assert.equal(result.pricing.unitPrice.amount,'20.90');assert.equal(result.pricing.checkoutReady,false);
  f.db.values.set('shipping/private/context-price/1/DE',{sku:item.sku,profileConfirmed:true,expiresAt:Date.now()+3600000,price:{amount:'17.90',currencyCode:'EUR'}});
  assert.equal((await(await f.handler(new Request(url))).json()).pricing.checkoutReady,false);
- f.db.values.set('shipping/private/context-price/1/DE',{sku:item.sku,profileConfirmed:true,expiresAt:Date.now()+3600000,price:{amount:'21.90',currencyCode:'EUR'}});
+ f.db.values.set('shipping/private/context-price/1/DE',{sku:item.sku,profileConfirmed:true,expiresAt:Date.now()+3600000,price:{amount:'20.90',currencyCode:'EUR'}});
  const confirmed=await(await f.handler(new Request(url))).json();
- assert.equal(confirmed.pricing.checkoutReady,true);assert.equal(confirmed.pricing.unitPrice.amount,'21.90');
+ assert.equal(confirmed.pricing.checkoutReady,true);assert.equal(confirmed.pricing.unitPrice.amount,'20.90');
  for(const code of ['DE','FR','NL','PL','ES','PT','IT','GR'])f.db.values.set('shipping/private/context-price/1/'+code,{sku:item.sku,profileConfirmed:true,expiresAt:Date.now()+3600000,price:{amount:'17.90',currencyCode:'EUR'}});
  const supplierCalls=f.calls.filter(c=>c.url.includes('cjdropshipping.com')).length;
  const countries=await(await f.handler(new Request(url+'&check=destinations&cached=1'))).json();
