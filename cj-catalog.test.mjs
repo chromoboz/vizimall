@@ -29,6 +29,7 @@ test('All eight quotes and native prices are required, then one shared profile i
     if(q.includes('contextualPricing'))return {node:{sku,contextualPricing:{price}}};
     if(q.includes('deliveryProfiles('))return {deliveryProfiles:{nodes:[profile],pageInfo:{hasNextPage:false}}};
     if(q.includes('deliveryProfileUpdate(')){writes.push(v);return {deliveryProfileUpdate:{profile:{id:'shared'},userErrors:[]}};}
+    if(q.includes('... on DeliveryProfile'))return {node:profile};
     return {node:{sku,deliveryProfile:profile}};
   };
   const args={admin,db,fields:'id',variantId,sku,destination:'DE',price,locationId:'CJ',now};
@@ -40,7 +41,7 @@ test('All eight quotes and native prices are required, then one shared profile i
 });
 test('A malformed shared profile cannot receive any variant',async()=>{
   let mutated=false;
-  const admin=async q=>{if(q.startsWith('mutation')){mutated=true;throw Error('unsafe association');}return{deliveryProfiles:{nodes:[{id:'bad',name:'VIZIMALL CJ — 8 destinations included',default:false,coversAllItems:false,profileLocationGroups:[]}],pageInfo:{hasNextPage:false}}};};
+  const admin=async q=>{if(q.startsWith('mutation')){mutated=true;throw Error('unsafe association');}const bad={id:'bad',name:'VIZIMALL CJ — 8 destinations included',default:false,coversAllItems:false,profileLocationGroups:[]};if(q.includes('... on DeliveryProfile'))return{node:bad};return{deliveryProfiles:{nodes:[bad],pageInfo:{hasNextPage:false}}};};
   await assert.rejects(sharedProfile({admin,fields:'id',locationId:'CJ',ready:true,variantIds:[variantId]}),/not confirmed/);
   assert.equal(mutated,false);
 });

@@ -15,11 +15,18 @@ export async function sharedProfile({admin,fields,locationId,ready=false,variant
   const name=ready?readyName:holdName;
   let after=null,profile;
   do{
-    const data=await admin(`query($after:String){deliveryProfiles(first:100,after:$after){nodes{${fields}} pageInfo{hasNextPage endCursor}}}`,{after});
+    // Listing nested zones on 100 profiles exceeds Shopify's query-cost limit.
+    // Find the owned profile cheaply, then inspect that one profile in full.
+    const data=await admin(`query($after:String){deliveryProfiles(first:100,after:$after){nodes{id name} pageInfo{hasNextPage endCursor}}}`,{after});
     for(const item of data.deliveryProfiles.nodes)if(item.name===name){if(profile)throw Error('Ambiguous CJ shared profile');profile=item;}
     if(data.deliveryProfiles.pageInfo.hasNextPage&&!data.deliveryProfiles.pageInfo.endCursor)throw Error('Incomplete shipping profiles');
     after=data.deliveryProfiles.pageInfo.hasNextPage?data.deliveryProfiles.pageInfo.endCursor:null;
   }while(after);
+  if(profile){
+    const detail=await admin(`query($id:ID!){node(id:$id){... on DeliveryProfile{${fields}}}}`,{id:profile.id});
+    if(!detail.node||detail.node.name!==name)throw Error('CJ shared shipping profile was not confirmed');
+    profile=detail.node;
+  }
   if(!profile){
     const created=result(await admin(`mutation($profile:DeliveryProfileInput!){deliveryProfileCreate(profile:$profile){profile{${fields}} userErrors{field message}}}`,{profile:{name,variantsToAssociate:variantIds,locationGroupsToCreate:[{locationsToAdd:[locationId],zonesToCreate:ready?launchDestinations.map(zeroZone):[]}]}}),'deliveryProfileCreate');
     profile=created.profile;

@@ -16,7 +16,7 @@ export function supplierContext(variant){
 function payload(data,key){const result=data?.[key];if(!result||result.userErrors?.length)throw Error('Shopify destination configuration was not confirmed');return result;}
 function sameMoney(a,b){return a?.currencyCode===b?.currencyCode&&Number(a.amount)===Number(b.amount);}
 const marketFields=`id name status conditions{conditionTypes regionsCondition{regions(first:250){nodes{... on MarketRegionCountry{code}} pageInfo{hasNextPage}}}} catalogs(first:100){nodes{id title status priceList{id currency}} pageInfo{hasNextPage}}`;
-export const profileFields=`id name default coversAllItems profileLocationGroups{locationGroup{id locations(first:250,includeLegacy:true){nodes{id} pageInfo{hasNextPage}}} locationGroupZones(first:250){nodes{zone{id countries{code{countryCode restOfWorld}}} methodDefinitions(first:10){nodes{id active name methodConditions{__typename} rateProvider{... on DeliveryRateDefinition{price{amount currencyCode}}}} pageInfo{hasNextPage}}} pageInfo{hasNextPage}}}`;
+export const profileFields=`id name default coversAllItems profileLocationGroups{locationGroup{id locations(first:10,includeLegacy:true){nodes{id} pageInfo{hasNextPage}}} locationGroupZones(first:16){nodes{zone{id countries{code{countryCode restOfWorld}}} methodDefinitions(first:2){nodes{id active name methodConditions{__typename} rateProvider{... on DeliveryRateDefinition{price{amount currencyCode}}}} pageInfo{hasNextPage}}} pageInfo{hasNextPage}}}`;
 function cjLocation(services){
   // The service registry is independent of a profile's assigned/unassigned
   // location lists. Legacy app locations can disappear from those lists after
