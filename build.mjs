@@ -7,6 +7,7 @@ for (const file of await readdir('.')) {
 await copyFile('_headers', 'dist/_headers');
 await copyFile('map-attribution.txt', 'dist/map-attribution.txt');
 await mkdir('.generated/functions', { recursive: true });
+await writeFile('.generated/functions/destination.mjs', `export default function(_request,context={}) { const code=context.geo?.country?.code; return Response.json({country:typeof code==='string'&&/^[A-Z]{2}$/.test(code)?code:null},{headers:{'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}}); }\n`);
 await mkdir('.generated/lib', { recursive: true });
 await copyFile('backend-shipping.mjs', '.generated/lib/backend-shipping.mjs');
 await copyFile('backend-autods-shipping.mjs', '.generated/lib/backend-autods-shipping.mjs');

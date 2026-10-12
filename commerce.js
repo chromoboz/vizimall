@@ -68,8 +68,9 @@ function createShippingQuoteClient(root) {
   }
   return {get,read,destinations,readDestinations};
 }
-(() => {
+(async () => {
   'use strict';
+  await window.VizimallShipping?.ready;
   const country = document.documentElement.dataset.country;
   let shippingCountry = window.VizimallShipping?.country || country;
   const api = window.VizimallStorefront;
@@ -199,6 +200,8 @@ function createShippingQuoteClient(root) {
       await cartReady.catch(()=>{}); await cartWrites.catch(()=>{});
       if(selection!==selectionNumber||!delivery.isConnected)return;
       shippingCountry = window.VizimallShipping.remember(selected);
+      deliveryCountrySelector.value=shippingCountry;
+      refine();
       destination.name = window.VizimallDestinations.name(shippingCountry);
       storageKey = `vizimall-cart-v2:guest:${window.VIZIMALL_SHOPIFY.domain}:${shippingCountry}`;
       cartInitialized=false;
@@ -621,6 +624,16 @@ function createShippingQuoteClient(root) {
   if (!panel || !(api.stores.includes(store) || store === 'all')) return;
   const grid = panel.querySelector('.product-grid');
   const tools = element('div', 'store-tools');
+  const deliveryCountrySelector=element('select');deliveryCountrySelector.setAttribute('aria-label','Delivery country');
+  const deliveryLabel=element('label','',tr('Ship to:')+' ');
+  for(const code of ['DE','FR','NL','PL','ES','PT','IT','GR']){
+    const option=element('option','',window.VizimallDestinations.name(code));option.value=code;deliveryCountrySelector.append(option);
+  }
+  if(!['DE','FR','NL','PL','ES','PT','IT','GR'].includes(shippingCountry)){
+    const option=element('option','','Choose delivery country');option.value='';option.disabled=true;deliveryCountrySelector.prepend(option);deliveryCountrySelector.value='';
+  }else deliveryCountrySelector.value=shippingCountry;
+  deliveryCountrySelector.addEventListener('change',()=>window.VizimallShipping.select(deliveryCountrySelector.value));
+  deliveryLabel.append(deliveryCountrySelector);
   const search = element('input'); search.type = 'search'; search.placeholder = tr(store === 'all' ? 'Search all stores' : 'Search this store'); search.setAttribute('aria-label', search.placeholder);
   search.value = new URLSearchParams(location.search).get('q') || '';
   const sorting = element('select'); sorting.setAttribute('aria-label', 'Sort products');
@@ -628,7 +641,7 @@ function createShippingQuoteClient(root) {
   const stock = element('label', '', 'In stock only '); const stockInput = element('input'); stockInput.type = 'checkbox'; stock.append(stockInput);
   const minimum = element('input'); minimum.type = 'number'; minimum.min = 0; minimum.placeholder = 'Min price'; minimum.setAttribute('aria-label', 'Minimum price');
   const maximum = element('input'); maximum.type = 'number'; maximum.min = 0; maximum.placeholder = 'Max price'; maximum.setAttribute('aria-label', 'Maximum price');
-  tools.append(search, sorting, stock, minimum, maximum); grid.before(tools);
+  tools.append(deliveryLabel,search, sorting, stock, minimum, maximum); grid.before(tools);
   const message = panel.querySelector('.collection-message');
   const count = panel.querySelector('.collection-heading > span');
   const more = button('Load more', load);
@@ -644,6 +657,30 @@ function createShippingQuoteClient(root) {
   const pageByNode = new WeakMap();
   function updateCount() {
     count.textContent = total + ' product' + (total === 1 ? '' : 's') + (complete ? '' : ' loaded');
+  }
+  let pendingCardPrices=[],cardPricesScheduled=false;
+  function scheduleCardPrice(item,node){
+    pendingCardPrices.push({item,node});
+    if(cardPricesScheduled)return;cardPricesScheduled=true;
+    queueMicrotask(async()=>{
+      const cards=pendingCardPrices;pendingCardPrices=[];cardPricesScheduled=false;
+      const code=shippingCountry;
+      const ids=[...new Set(cards.map(({item})=>item.id.split('/').at(-1)))];
+      const prices={};
+      try{
+        for(let i=0;i<ids.length;i+=12){
+          const response=await fetch('/.netlify/functions/shipping?'+new URLSearchParams({check:'catalog-prices',shipping:code,products:ids.slice(i,i+12).join(',')}),{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(15000)});
+          if(!response.ok)throw Error('Price verification unavailable');
+          Object.assign(prices,(await response.json()).prices||{});
+        }
+      }catch{}
+      for(const {item,node}of cards){
+        if(!node.isConnected||code!==shippingCountry)continue;
+        const verified=prices[item.id]?[prices[item.id]]:[];
+        node.textContent=verified.length?'From '+money(verified[0])+' · '+tr('Standard shipping included'):['DE','FR','NL','PL','ES','PT','IT','GR'].includes(code)?tr('Price being confirmed'):tr('Choose delivery country');
+        if(verified.length){item.deliveredPrice=verified[0];node.closest('article').hidden=!priceMatches(item);}
+      }
+    });
   }
   function productCard(item) {
     window.VizimallProductCopy?.apply(item, country);
@@ -664,8 +701,10 @@ function createShippingQuoteClient(root) {
     card.dataset.productId = item.id;
     const rating = element('p', 'product-rating', 'Loading reviews…');
     rating.setAttribute('aria-live', 'polite');
-    const priceLabel=String(item.vendor||'').toLowerCase()==='cjdropshipping'?'View price including shipping':'From '+money(item.priceRange.minVariantPrice);
-    card.append(open, rating, element('p', 'product-price', priceLabel), button(item.availableForSale ? 'Choose options' : 'View product · Sold out', () => showProduct(item), 'commerce-secondary'), favourite);
+    const mainCJ=String(item.vendor||'').toLowerCase()==='cjdropshipping';
+    const priceNode=element('p','product-price',mainCJ?tr('Checking price including shipping…'):'From '+money(item.priceRange.minVariantPrice));
+    card.append(open, rating,priceNode, button(item.availableForSale ? 'Choose options' : 'View product · Sold out', () => showProduct(item), 'commerce-secondary'), favourite);
+    if(mainCJ)scheduleCardPrice(item,priceNode);
     if (store === 'all') {
       const category = element('a', 'product-category', tr(window.VizimallNavigation.labels[itemStore]));
       category.href = itemStore + '.html?country=' + country + '&shipping=' + shippingCountry;
@@ -674,7 +713,8 @@ function createShippingQuoteClient(root) {
     return card;
   }
   function priceMatches(item) {
-    const amount = Number(item.priceRange.minVariantPrice.amount);
+    if(String(item.vendor||'').toLowerCase()==='cjdropshipping'&&!item.deliveredPrice)return true;
+    const amount = Number((item.deliveredPrice||item.priceRange.minVariantPrice).amount);
     return (!options.min || amount >= Number(options.min)) && (!options.max || amount <= Number(options.max));
   }
   function mount(page, items) {

@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const {readFileSync}=require('node:fs');
 const vm=require('node:vm');
 const source=readFileSync('commerce.js','utf8');
-const helper=source.slice(0,source.indexOf('(() => {'));
+const helper=source.slice(0,source.indexOf('(async () => {'));
 const query=(shipping='DE',quantity='1',from)=>new URLSearchParams({variant:'gid://shopify/ProductVariant/1',shipping,country:'DE',store:'tech',quantity,...(from?{from}:{})});
 const quote=(destination='DE')=>({status:'available',destination,from:'DE',origins:['DE'],methods:[{name:'DHL',transport:'3-5',supplierCost:{amount:'0',currencyCode:'USD'}}],quantity:1,stockQuantity:10,checkedAt:new Date().toISOString(),expiresAt:Date.now()+6*3600000,pricing:{checkoutReady:true,unitPrice:{amount:'22.90',currencyCode:'EUR'},lineTotal:{amount:'22.90',currencyCode:'EUR'},standardMethod:'DHL'}});
 function boot({saved=new Map(),fetcher,blocked=false}={}){
@@ -51,6 +51,7 @@ function productBoot(fetcher,discovery,origin){
  Object.assign(f.root,{VizimallDestinations:{codes:['DE','GR','US'],valid:code=>['DE','GR','US'].includes(code),name:c=>c},VizimallDelivery:{route:()=>({})},VizimallShipping:{remember:c=>c}});
  Object.assign(f.context,{window:f.root,api:{productOrigin:detail=>detail.origin||null},country:'DE',shippingCountry:'DE',store:'tech',destination:{name:'DE'},storageKey:'',cartInitialized:true,cartReady:Promise.resolve(),cartWrites:Promise.resolve(),loadCart:async()=>{},tr:s=>s,money:p=>p.amount,shippingQuotes:f.client,element:(tag,cls,text)=>{const n=new Node(tag,cls,text);nodes.push(n);return n;},DOMParser:class{parseFromString(){return{body:{childNodes:[]}};}},document:{documentElement:{lang:'de',dataset:{country:'DE'}},body:{},visibilityState:'visible'},CustomEvent:class{constructor(type,options){this.type=type;this.detail=options.detail;}},MutationObserver:class{observe(){}disconnect(){}},setInterval:()=>1,clearInterval:()=>{},setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout:()=>{}});
  const start=source.indexOf('  function productInformation('),end=source.indexOf('  function validLine(');
+ Object.assign(f.context,{deliveryCountrySelector:{value:'DE'},refine:()=>{f.catalogRefreshes=(f.catalogRefreshes||0)+1;}});
  vm.runInNewContext(source.slice(start,end),f.context);
  const information=f.context.productInformation({description:'',origin},'tech');
  return{...f,information,nodes,timers,selector:nodes.find(n=>n.attributes['aria-label']==='Product shipping country')};

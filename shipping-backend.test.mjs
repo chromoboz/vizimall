@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createShippingHandler} from './backend-shipping.mjs';
+import {mainPricingPolicy} from './backend-included-pricing.mjs';
 function database(entries=[]){const values=new Map(entries);return {values,get:async k=>values.get(k),getWithMetadata:async k=>values.has(k)?{data:values.get(k),etag:'1'}:null,setJSON:async(k,v)=>{values.set(k,v);return{modified:true}}};}
 const settings={domain:'example.myshopify.com',apiVersion:'2026-10',publicToken:'public'};
 const base='https://vizimall.com/api/shipping?variant=gid://shopify/ProductVariant/1&country=DE&shipping=GR&store=tech';
@@ -19,7 +20,7 @@ test('Product-opening country list returns only fresh confirmed countries withou
 function fixture(overrides={}){
  const calls=[];const db=database(overrides.entries);const fetcher=async(url,options={})=>{calls.push({url,body:options.body&&JSON.parse(options.body),headers:options.headers});let data;
  if(url.includes('ecb.europa.eu'))return new Response(`<Cube time="${new Date().toISOString().slice(0,10)}"><Cube currency="USD" rate="1.1204"/></Cube>`);
- if(url.includes('myshopify.com'))return Response.json({data:{node:overrides.variant||variant}});
+ if(url.includes('myshopify.com'))return Response.json({data:JSON.parse(options.body).variables.ids?{nodes:overrides.cardProducts||[]}:{node:overrides.variant||variant}});
  if(url.includes('getAccessToken'))data={accessToken:'secret-token',accessTokenExpiryDate:'2099-01-01'};
  else if(url.includes('variant/query')){if(overrides.variantParameterError)return Response.json({result:false,code:1600300,message:'Param error'});data=[{vid:'cj-variant',variantSku:'CJTEST-1'}];}
  else if(url.includes('product/query'))data={variants:overrides.detailVariants||[{vid:'cj-variant',variantSku:'CJTEST-1',variantSellPrice:'1.52'}]};
@@ -50,6 +51,20 @@ test('Main catalog quotes China dispatch to the delivery country without country
  assert.equal(f.calls.filter(c=>c.url.includes('cjdropshipping.com')).length,supplierCalls);
  const outside=await (await f.handler(new Request(url.replace('shipping=DE','shipping=US')))).json();
  assert.equal(outside.status,'unavailable');
+});
+test('Catalog cards expose only current-policy native-confirmed public variants and never call CJ',async()=>{
+ const item={...variant,availableForSale:true,price:{amount:'24.90',currencyCode:'EUR'},product:{vendor:'CJdropshipping'}};
+ const key='shipping/private/context-price/1/DE';
+ const record={sku:item.sku,policy:mainPricingPolicy,profileConfirmed:true,expiresAt:Date.now()+60000,price:item.price};
+ const product={id:'gid://shopify/Product/11',vendor:'CJdropshipping',availableForSale:true,variants:{nodes:[item],pageInfo:{hasNextPage:false}}};
+ const f=fixture({cardProducts:[product],entries:[[key,record]]});
+ const url='https://vizimall.com/api/shipping?check=catalog-prices&shipping=DE&products=11';
+ assert.deepEqual((await(await f.handler(new Request(url))).json()).prices,{[product.id]:item.price});
+ for(const changed of [{policy:'old'},{sku:'changed'},{expiresAt:0},{profileConfirmed:false},{price:{amount:'23.90',currencyCode:'EUR'}}]){
+   f.db.values.set(key,{...record,...changed});assert.deepEqual((await(await f.handler(new Request(url))).json()).prices,{});
+ }
+ assert.ok(!f.calls.some(c=>c.url.includes('cjdropshipping.com')));
+ assert.equal((await f.handler(new Request(url.replace('products=11','products=abc')))).status,400);
 });
 test('Parallel identical quotes share work across shoppers and default/explicit origin',async()=>{
  const f=fixture();

@@ -2,7 +2,7 @@ import { store, limit, hash, update } from './backend-persistence.mjs';
 import './shipping-destinations.js';
 import {auditedDestinations} from './backend-destination-audit.mjs';
 import { discoverDestinations, enqueueDestinationDiscovery } from './backend-destinations.mjs';
-import { baselineForSync, cheapestMethod, includedPrice, mainCatalogPrice, convertCost, parseEcbRates, shippingMethods } from './backend-included-pricing.mjs';
+import { baselineForSync, cheapestMethod, includedPrice, mainCatalogPrice, mainPricingPolicy, convertCost, parseEcbRates, shippingMethods } from './backend-included-pricing.mjs';
 import {createAutoDSQuote} from './backend-autods-shipping.mjs';
 import {mainCatalogContext,launchDestinations} from './backend-cj-catalog.mjs';
 const countries = {CN:'china',DE:'germany',NL:'netherlands',FR:'france',GR:'greece',IT:'italy',PL:'poland',PT:'portugal',ES:'spain'};
@@ -87,6 +87,27 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
     if(!env.CJ_API_KEY&&!env.SHOPIFY_ADMIN_CLIENT_ID&&!autodsAdminFactory)return reply({status:'not_connected',methods:[]});
     try {
       const url=new URL(req.url);
+      if(url.searchParams.get('check')==='catalog-prices'){
+        const destination=url.searchParams.get('shipping');
+        const numbers=(url.searchParams.get('products')||'').split(',');
+        if(!launchDestinations.includes(destination)||!numbers.length||numbers.length>12||numbers.some(n=>!/^\d{1,20}$/.test(n)))return reply({prices:{}},400);
+        const db=await dbFactory(req);
+        await limit(db,'shipping:cards:'+(context.ip||'unknown'),60,60000);
+        const ids=[...new Set(numbers)].map(n=>'gid://shopify/Product/'+n);
+        const settings=storefrontConfig;
+        const response=await fetcher(`https://${settings.domain}/api/${settings.apiVersion}/graphql.json`,{method:'POST',redirect:'error',signal:AbortSignal.timeout(10000),headers:{'Content-Type':'application/json','X-Shopify-Storefront-Access-Token':settings.publicToken},body:JSON.stringify({query:`query($ids:[ID!]!,$country:CountryCode!) @inContext(country:$country){nodes(ids:$ids){... on Product{id vendor availableForSale variants(first:100){nodes{id sku availableForSale price{amount currencyCode}} pageInfo{hasNextPage}}}}}`,variables:{ids,country:destination}})});
+        const body=await response.json();if(!response.ok||body.errors||!Array.isArray(body.data?.nodes))throw Error('Catalog price verification unavailable');
+        const prices={};
+        await Promise.all(body.data.nodes.filter(p=>p?.availableForSale&&String(p.vendor||'').toLowerCase()==='cjdropshipping'&&!p.variants?.pageInfo?.hasNextPage).map(async p=>{
+          const confirmed=[];
+          await Promise.all((p.variants?.nodes||[]).filter(v=>v.availableForSale).map(async v=>{
+            const ready=await db.get('shipping/private/context-price/'+v.id.split('/').at(-1)+'/'+destination,{type:'json'});
+            if(ready?.policy===mainPricingPolicy&&ready?.profileConfirmed===true&&ready?.sku===v.sku&&ready?.expiresAt>Date.now()&&ready?.price?.currencyCode==='EUR'&&Number(ready.price.amount)===Number(v.price.amount))confirmed.push(ready.price);
+          }));
+          if(confirmed.length)prices[p.id]=confirmed.sort((a,b)=>Number(a.amount)-Number(b.amount))[0];
+        }));
+        return reply({country:destination,prices});
+      }
       // Fixed, public CJ catalog SKU for an end-to-end supplier smoke check.
       // This does not publish or qualify a Shopify product for purchase.
       if (url.searchParams.get('check') === 'supplier-sample') {
