@@ -796,3 +796,8 @@ body.is-entering .panorama-canvas {will-change:transform;}
 .product-rating { font-size: .85rem; color: #686868; margin: .25rem 0 .6rem; }
 .product-stars { color: #b57400; letter-spacing: .08em; }
 .product-stock { font-size: .9rem; color: #346249; margin: .5rem 0; }
+
+/* One mall: language is independent of the delivery destination. */
+.mall-page .entry-language{position:absolute;left:18px;top:22px;z-index:2;font:12px Inter,sans-serif;color:#e5d1a1}
+.mall-page .entry-language select{max-width:110px;min-height:38px;padding:6px;border:1px solid #d7b56d80;border-radius:6px;background:#15221c;color:#f5f2eb;font:inherit}
+@media(max-width:600px){.mall-page .entry-language{left:10px;top:20px}.mall-page .entry-language>span{display:none}.mall-page .entry-language select{max-width:82px;font-size:11px}}

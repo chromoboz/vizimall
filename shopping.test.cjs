@@ -3,12 +3,12 @@ const assert=require('node:assert/strict');
 require('./storefront-api.js'); require('./product-copy.js');
 const api=globalThis.VizimallStorefront;
 const config={domain:'example.myshopify.com',publicToken:'public-test-token',apiVersion:'2026-10'};
-test('Country-wide search retains exact country and active store tags, excludes stale-index results and uses browsing language',async()=>{
+test('Mall-wide search retains active store tags, excludes stale-index results and uses browsing language',async()=>{
   const client=api.createClient(config,async(url,options)=>{
     const {query,variables}=JSON.parse(options.body);
     assert.match(query,/@inContext\(country: \$country, language: \$language\)/);
     assert.equal(variables.country,'NL'); assert.equal(variables.language,'DE');
-    assert.match(variables.filter,/^tag:country-germany AND \(tag:store-tech OR/);
+    assert.match(variables.filter,/^\(tag:store-tech OR/);
     assert.ok(variables.filter.includes('tag:store-auto'));
     return{ok:true,json:async()=>({data:{products:{nodes:[
       {id:'tech',tags:['country-germany','store-tech']},
@@ -19,7 +19,7 @@ test('Country-wide search retains exact country and active store tags, excludes 
     ],pageInfo:{hasNextPage:true,endCursor:'next'}}}})};
   });
   const result=await client.products('DE','all',null,{shippingCountry:'NL',search:'Lamp'});
-  assert.deepEqual(result.products.map(p=>p.id),['tech','home']);
+  assert.deepEqual(result.products.map(p=>p.id),['tech','home','wrong-country']);
   assert.equal(api.productStore(result.products[1],'DE'),'home');
   assert.equal(result.pageInfo.endCursor,'next');
   await assert.rejects(client.products('XX','all'));

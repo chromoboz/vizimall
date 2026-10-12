@@ -122,6 +122,7 @@ function createShippingQuoteClient(root) {
     return node;
   }
   function productInformation(detail, store) {
+    const country = api.productOrigin(detail) || document.documentElement.dataset.country;
     const details = element('section', 'product-information');
     details.append(element('h3', '', 'Product details'));
     const delivery = element('section', 'delivery-information');
@@ -417,7 +418,7 @@ function createShippingQuoteClient(root) {
       updateTotals();
       pay.disabled = !cart.length;
     }
-    modal.append(contents, element('p', 'checkout-note', tr('You are shopping the {place} collection. Your delivery address can be in another country, but delivery may take longer or be unavailable. Shipping options, final prices and taxes are calculated in Shopify checkout. You can check out as a guest.',{place:window.VizimallDestinations.name(country)})), status, pay);
+    modal.append(contents, element('p', 'checkout-note', 'One VIZIMALL collection. Shipping availability and prices depend on your delivery country. Final prices and taxes are confirmed in Shopify checkout. You can check out as a guest.'), status, pay);
     render();
   }
   async function showProduct(item) {
@@ -503,7 +504,7 @@ function createShippingQuoteClient(root) {
       const stockStatus = element('p', 'product-stock');
       stockStatus.setAttribute('aria-live', 'polite');
       const information = productInformation(detail, store);
-      copy.append(element('p', 'detail-eyebrow', window.VizimallLocale?.t('The {place} collection',{place:window.VizimallDestinations.name(country)})||`${market.name} collection`), price);
+      copy.append(element('p', 'detail-eyebrow', 'VIZIMALL'), price);
       if (detail.summary) copy.append(element('p', 'product-summary supplier-content', detail.summary));
       const help = element('a', 'product-help', tr('Delivery, orders and support'));
       help.href = 'help.html?country=' + country + '&shipping=' + shippingCountry;
@@ -572,7 +573,7 @@ function createShippingQuoteClient(root) {
         if(!Number.isInteger(selectedQuantity)||selectedQuantity<1||nextQuantity>99||nextQuantity>currentShippingQuote.stockQuantity){status.textContent='This quantity exceeds the available stock or item limit.';return;}
         if (!existing && cart.length >= 50) { status.textContent = 'Your bag is full. Please check out first.'; return; }
         if (existing) {existing.quantity=nextQuantity;existing.price=currentShippingQuote.pricing.unitPrice;}
-        else cart.push({ productId: detail.id, variantId: variant.id, store, browsingCountry: country, title: detail.title, variantTitle: variant.title, price: currentShippingQuote.pricing.unitPrice, quantity:selectedQuantity });
+        else cart.push({ productId: detail.id, variantId: variant.id, store, browsingCountry: api.productOrigin(detail) || country, title: detail.title, variantTitle: variant.title, price: currentShippingQuote.pricing.unitPrice, quantity:selectedQuantity });
         add.disabled=true;try{await save();status.textContent='Added to your bag.';}catch(error){status.textContent=error.message;}finally{add.disabled=!currentShippingQuote?.pricing?.checkoutReady;}
       });
       add.disabled = true;

@@ -33,7 +33,7 @@
     white-space: nowrap;
   }
   .topbar .profile-mini { width: 28px; height: 28px; }
-  body .topbar .market-switch, body.map-page .topbar .entry-language {
+  body .topbar .market-switch, body.map-page .topbar .entry-language, body.mall-page .topbar .entry-language {
     position: static;
     grid-column: 1;
     grid-row: 2;

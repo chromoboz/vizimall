@@ -12,8 +12,13 @@
   }
   function matches(product, country, store) {
     const { countryTag, storeTag } = routing(country, store);
-    return Array.isArray(product.tags) && product.tags.includes(countryTag) && product.tags.includes(storeTag);
+    return Array.isArray(product.tags) && product.tags.includes(storeTag);
   }
+  const productOrigin = product => {
+    const origins = Object.keys(countries).filter(code => product?.tags?.includes(`country-${countries[code]}`));
+    return origins.length === 1 ? origins[0] : null;
+  };
+  const languageFor = country => root.VizimallLocale ? ({en:'EN',de:'DE',el:'EL',fr:'FR',it:'IT',es:'ES',nl:'NL',pl:'PL','pt-PT':'PT_PT'})[root.VizimallLocale.language] || 'EN' : languages[country];
   function createClient(config, fetcher = root.fetch.bind(root)) {
     if (!config || !/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(config.domain) || !config.publicToken || /^(shpat_|shpca_|shpss_|shppa_)/i.test(config.publicToken)) {
       throw new Error('The store connection is unavailable. Please try again later.');
@@ -51,7 +56,7 @@
       const shippingCountry = options.shippingCountry || country;
       if (!validDestination(shippingCountry)) throw new Error('Choose a supported delivery country.');
       // Collection tags identify the supplier's storefront, not destinations.
-      const terms = ['tag:' + countryTag, store === 'all' ? '(' + stores.map(value => 'tag:store-' + value).join(' OR ') + ')' : 'tag:' + storeTag];
+      const terms = [store === 'all' ? '(' + stores.map(value => 'tag:store-' + value).join(' OR ') + ')' : 'tag:' + storeTag];
       const quote = value => '"' + value.replace(/[\\"():*]/g, character => '\\' + character) + '"';
       for (const word of String(options.search || '').trim().split(/\s+/).filter(Boolean)) terms.push('title:' + quote(word) + '*');
       if (options.inStock) terms.push('available_for_sale:true');
@@ -62,7 +67,7 @@
         products(first: 24, after: $after, query: $filter, sortKey: ${sortKey}, reverse: ${reverse}) {
           nodes { ${listFields} } pageInfo { hasNextPage endCursor }
         }
-      }`, { country: shippingCountry, language: languages[country], filter: terms.join(' AND '), after }, options.signal);
+      }`, { country: shippingCountry, language: languageFor(country), filter: terms.join(' AND '), after }, options.signal);
       // Also check exact tags locally: Shopify search indexing can lag behind edits.
       return { products: data.products.nodes.filter(p => store === 'all' ? productStore(p, country) : matches(p, country, store)), pageInfo: data.products.pageInfo };
     }
@@ -75,7 +80,7 @@
           product(id: $id) { ${productFields} descriptionHtml delivery:metafield(namespace:"vizimall",key:"delivery_routes"){type value} images(first: 250) { nodes { url altText } } variants(first: 100, after: $after) {
             nodes { ${variantFields} } pageInfo { hasNextPage endCursor }
           } }
-        }`, { country: shippingCountry, language: languages[country], id, after }, signal);
+        }`, { country: shippingCountry, language: languageFor(country), id, after }, signal);
         item = data.product;
         if (!item || !matches(item, country, store)) throw new Error('This product is no longer available in this store.');
         variants.push(...item.variants.nodes);
@@ -103,7 +108,7 @@
           cart { checkoutUrl totalQuantity }
           userErrors { message } warnings { message }
         }
-      }`, { country, language: ({DE:'DE',GR:'EL',FR:'FR',IT:'IT',ES:'ES',NL:'NL',PL:'PL',PT:'PT_PT'})[browsingCountry] || 'EN', input: { buyerIdentity: { countryCode: country }, lines: verified, attributes: [{ key: 'vizimall-country', value: country }] } });
+      }`, { country, language: languageFor(browsingCountry) || 'EN', input: { buyerIdentity: { countryCode: country }, lines: verified, attributes: [{ key: 'vizimall-country', value: country }] } });
       const result = data.cartCreate;
       if (result.userErrors.length) throw new Error(result.userErrors.map(e => e.message).join(' '));
       if (result.warnings?.length) throw new Error(result.warnings.map(e => e.message).join(' ') + ' Please review your cart.');
@@ -119,5 +124,5 @@
     }
     return Object.freeze({ products, product, checkout });
   }
-  root.VizimallStorefront = Object.freeze({ countries, stores, routing, matches, productStore, createClient });
+  root.VizimallStorefront = Object.freeze({ countries, stores, routing, matches, productStore, productOrigin, createClient });
 })(typeof window === 'undefined' ? globalThis : window);

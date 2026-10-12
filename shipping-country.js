@@ -17,6 +17,10 @@
   if (!initial || valid(requested) || valid(remembered)) history.replaceState(history.state, '', url);
   const withCountry = (input, code = country) => {
     const target = new URL(input, location.href);
+    if (target.origin === location.origin) {
+      target.searchParams.delete('country');
+      target.searchParams.set('lang', window.VizimallLocale?.language || 'en');
+    }
     if (!(initial && !valid(requested) && !valid(stored())) && target.origin === location.origin && /\/(?:index|mall|search|account|tech|home|pets|beauty|fashion|kids|auto|help|privacy|newsletter|travel|lifestyle)(?:\.html)?\/?$/.test(target.pathname)) target.searchParams.set('shipping', code);
     return target;
   };

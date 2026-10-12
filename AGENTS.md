@@ -29,3 +29,5 @@ Shopify products 16115791298894, 16115790577998 and 16115788611918 were archived
 
 
 Latest user correction (4 October 2026): mall only is a fixed scene without vertical document scrolling or the injected footer links. Preserve home/profile/store scrolling. Use a small accessible bag icon at bottom right, clear of the panorama hint; keep horizontal dragging and cookie choice available. Other pages retain footer preference management.
+
+Latest user instruction (12 October 2026): one VIZIMALL catalog for all destinations. Remove map and country-mall routing; open the mall at the root. Country tags remain supplier warehouse metadata for CJ shipping/price workers, not storefront catalog filters. Keep destination-specific live shipping eligibility and checkout pricing. CJ product imports and individual route/freight setup will be handled next; do not invent destinations or delivery costs.

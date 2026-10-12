@@ -28,19 +28,17 @@ test('Missing public inventory permission preserves detail and never fabricates 
   assert.equal(detail.variants[0].quantityAvailable, undefined);
   assert.equal(detail.variants[0].availableForSale, true);
 });
-test('All 56 country/store routes require both exact tags', () => {
+test('One catalog uses category tags across all browsing languages', () => {
   for (const country of Object.keys(api.countries)) for (const store of api.stores) {
-    const { countryTag, storeTag } = api.routing(country, store);
-    assert.ok(api.matches({ tags: [countryTag, storeTag] }, country, store));
-    assert.equal(api.matches({ tags: [countryTag] }, country, store), false);
-    assert.equal(api.matches({ tags: [storeTag] }, country, store), false);
-    assert.equal(api.matches({ tags: [countryTag + '-extra', storeTag] }, country, store), false);
+    assert.ok(api.matches({tags:['store-'+store]},country,store));
+    assert.ok(api.matches({tags:['country-france','store-'+store]},country,store));
+    assert.equal(api.matches({tags:['store-'+store+'-extra']},country,store),false);
+    assert.equal(api.matches({tags:['country-germany']},country,store),false);
   }
-  assert.ok(api.matches({ tags: ['country-germany','country-france','store-tech','store-home'] }, 'FR','home'));
-  assert.throws(() => api.routing('GB','tech'));
-  assert.throws(() => api.routing('DE','unknown'));
-  assert.equal(api.routing('DE', 'auto').storeTag, 'store-auto');
-  assert.equal(api.matches({ tags: ['country-germany', 'store-fashion'] }, 'DE', 'auto'), false);
+  assert.equal(api.productOrigin({tags:['country-france','store-tech']}),'FR');
+  assert.equal(api.productOrigin({tags:['store-tech']}),null);
+  assert.equal(api.productOrigin({tags:['country-france','country-germany','store-tech']}),null);
+  assert.throws(()=>api.routing('DE','unknown'));
 });
 test('Rejects secret tokens and untrusted endpoints', () => {
   for (const publicToken of ['', 'shpat_secret', 'shpca_secret', 'shpss_secret', 'shppa_secret']) assert.throws(() => api.createClient({ ...config, publicToken }));
@@ -48,8 +46,8 @@ test('Rejects secret tokens and untrusted endpoints', () => {
 });
 test('Server filtering, country context, pagination and stale-index protection', async () => {
   const client = mock(({ variables }) => {
-    assert.deepEqual(variables, { country: 'DE', language: 'DE', filter: 'tag:country-germany AND tag:store-tech', after: 'page-one' });
-    return { data: { products: { nodes: [item, { ...item, tags: ['country-france','store-tech'] }], pageInfo: { hasNextPage: true, endCursor: 'page-two' } } } };
+    assert.deepEqual(variables, { country: 'DE', language: 'DE', filter: 'tag:store-tech', after: 'page-one' });
+    return { data: { products: { nodes: [item, { ...item, tags: ['country-france','store-home'] }], pageInfo: { hasNextPage: true, endCursor: 'page-two' } } } };
   });
   const result = await client.products('DE','tech','page-one');
   assert.equal(result.products.length, 1);
@@ -83,7 +81,7 @@ test('Checkout validates tags and variants, then uses Shopify cart and buyer cou
   assert.ok(mutation);
 });
 test('Changed tags and sold-out variants prevent checkout mutation', async () => {
-  for (const product of [{ ...item, tags: ['country-france','store-tech'] }, { ...item, variants: { ...item.variants, nodes: [{ ...variant, availableForSale: false }] } }]) {
+  for (const product of [{ ...item, tags: ['country-france','store-home'] }, { ...item, variants: { ...item.variants, nodes: [{ ...variant, availableForSale: false }] } }]) {
     const client = mock(({ query }) => { assert.ok(query.includes('query Product')); return { data: { product } }; });
     await assert.rejects(client.checkout('DE',[line]));
   }
@@ -123,14 +121,14 @@ test('Search and global price sorting keep pages small and omit detail payloads'
     assert.match(query, /products\(first: 24/);
     assert.match(query, /sortKey: PRICE, reverse: true/);
     assert.doesNotMatch(query, /description|images\(|variants\(/);
-    assert.equal(variables.filter, 'tag:country-germany AND tag:store-tech AND title:"Lamp"* AND available_for_sale:true');
+    assert.equal(variables.filter, 'tag:store-tech AND title:"Lamp"* AND available_for_sale:true');
     return {data:{products:{nodes:[item],pageInfo:{hasNextPage:false,endCursor:'last'}}}};
   });
   await client.products('DE','tech',null,{search:'Lamp',sort:'high',inStock:true});
 });
 test('User search punctuation is escaped instead of changing country/store constraints', async () => {
   const client = mock(({variables}) => {
-    assert.ok(variables.filter.startsWith('tag:country-germany AND tag:store-tech AND title:'));
+    assert.ok(variables.filter.startsWith('tag:store-tech AND title:'));
     assert.ok(variables.filter.includes('\\"'));
     assert.ok(variables.filter.includes('\\:'));
     return {data:{products:{nodes:[],pageInfo:{hasNextPage:false,endCursor:null}}}};

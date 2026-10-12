@@ -6,7 +6,7 @@
   if (!country) return;
   const tr = key => window.VizimallLocale?.t(key) || key;
   const destination = window.VizimallShipping?.country || country;
-  const target = page => page + '.html?country=' + country + '&shipping=' + destination;
+  const target = page => window.VizimallShipping.withCountry(page + '.html', destination).href;
   const navigation = document.createElement('nav');
   navigation.className = 'shopping-navigation';
   navigation.setAttribute('aria-label', tr('Find a product'));
