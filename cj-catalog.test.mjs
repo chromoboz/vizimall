@@ -52,6 +52,7 @@ test('Scheduled main catalog preparation visits all eight destinations and priva
   const original=db.setJSON;db.setJSON=async(k,v)=>{await original(k,v);return {modified:true};};
   const product={id:'gid://shopify/Product/1',vendor:'CJdropshipping',title:'Neck Massager',status:'DRAFT',tags:[]};
   values.set('shipping/private/cj-held/1',{preparedAt:Date.now()});
+  values.set('shipping/private/import-retry/blocked',{until:Date.now()+600000});
   const variant={id:variantId,sku,price:'5.90',product,contextualPricing:{price:{amount:'5.90',currencyCode:'EUR'}}};
   const destinations=[];
   let publications=0;
@@ -61,7 +62,11 @@ test('Scheduled main catalog preparation visits all eight destinations and priva
     if(q.includes('productUpdate(')){publications++;return {productUpdate:{product:{id:product.id,status:'ACTIVE'},userErrors:[]}};}
     return {shop:{currencyCode:'EUR'},node:variant};
   };
-  const run=createContextPricingJob({production:true,env:{VIZIMALL_NATIVE_SHIPPING_ENABLED:'true'},storefrontConfig:{domain:'example.myshopify.com'},dbFactory:async()=>db,adminFactory:()=>admin,shippingFactory:options=>async req=>{
+  const run=createContextPricingJob({production:true,prioritizeImports:true,env:{VIZIMALL_NATIVE_SHIPPING_ENABLED:'true'},storefrontConfig:{domain:'example.myshopify.com'},dbFactory:async()=>db,adminFactory:()=>async(q,v)=>{
+    if(q.includes('products(first:100'))return {products:{nodes:product.status==='DRAFT'?[{...product,id:'gid://shopify/Product/blocked',variants:{nodes:[{...variant,id:'gid://shopify/ProductVariant/blocked'}]}},{...product,variants:{nodes:[variant]}}]:[]}};
+    if(q.includes('productVariants('))throw Error('Older active variant catalog must not delay new draft');
+    const result=await admin(q,v);if(q.includes('productUpdate('))product.status='ACTIVE';return result;
+  },shippingFactory:options=>async req=>{
     const resolved=await options.variantResolver(variantId,'DE');
     assert.equal(resolved.product.status,'DRAFT');assert.equal(resolved.price.amount,'5.90');
     const url=new URL(req.url),destination=url.searchParams.get('shipping');

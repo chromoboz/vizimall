@@ -7,7 +7,7 @@ import {mainCatalogContext,launchDestinations} from './backend-cj-catalog.mjs';
 import {sharedProfile} from './backend-cj-profiles.mjs';
 // One bounded scheduled worker handles all supplier malls and destinations.
 // Activation is explicit after the merchant approves the additional app scopes.
-export function createContextPricingJob({production=false,storefrontConfig,env=process.env,dbFactory=store,fetcher=fetch,adminFactory=createAdminPricingClientFromEnv,prepare=prepareDestinationPrice,shippingFactory=createShippingHandler}={}){
+export function createContextPricingJob({production=false,prioritizeImports=false,storefrontConfig,env=process.env,dbFactory=store,fetcher=fetch,adminFactory=createAdminPricingClientFromEnv,prepare=prepareDestinationPrice,shippingFactory=createShippingHandler}={}){
   return async()=>{
     if(!production||env.VIZIMALL_NATIVE_SHIPPING_ENABLED!=='true')return new Response(null,{status:204});
     const db=await dbFactory(new Request('https://vizimall.com'));
@@ -28,6 +28,41 @@ export function createContextPricingJob({production=false,storefrontConfig,env=p
       // and existing routes cannot starve behind visitor requests.
       const queued=queue?.items?.[0]||oldRoute;
       job=(cursor?.migrating&&(!queued||queued.browsing==='CN'))||cursor?.queuedLast?null:queued;
+      if(prioritizeImports){
+        // Oldest drafts first: publication of one option must not wait for all
+        // options of older active products. Completed drafts leave this query.
+        const pending=await admin(`query{products(first:100,query:"vendor:CJdropshipping status:draft",sortKey:CREATED_AT){nodes{id tags status vendor productType title variants(first:1){nodes{id sku selectedOptions{name value}}}}}}`);
+        for(const product of pending.products.nodes){
+          if(!mainCatalogContext(product)||product.status!=='DRAFT')continue;
+          if((await db.get('shipping/private/import-retry/'+product.id.split('/').at(-1),{type:'json'}))?.until>Date.now())continue;
+          const variant=product.variants.nodes[0];
+          const source=variant&&supplierContext({...variant,product});
+          if(!source)continue;
+          const records=await Promise.all(launchDestinations.map(d=>db.get('shipping/private/cj-candidate/'+variant.id.split('/').at(-1)+'/'+d,{type:'json'})));
+          const missing=records.findIndex(r=>r?.sku!==variant.sku||r.policy!==mainPricingPolicy||r.expiresAt<=Date.now());
+          job={variantId:variant.id,sku:variant.sku,...source,destination:launchDestinations[Math.max(0,missing)],importProductId:product.id};
+          break;
+        }
+        if(!job?.importProductId){
+          // CJ may create ACTIVE imports. Discover those too, then the existing
+          // hold/stock/cost checks put them in DRAFT before preparing prices.
+          const scan=await db.get('shipping/private/import-scan',{type:'json'});
+          const incoming=await admin(`query($after:String){products(first:50,after:$after,query:"vendor:CJdropshipping status:active",sortKey:CREATED_AT){nodes{id tags status vendor productType title variants(first:1){nodes{id sku selectedOptions{name value}}}} pageInfo{hasNextPage endCursor}}}`,{after:scan?.after||null});
+          const held=await Promise.all(incoming.products.nodes.map(p=>db.get('shipping/private/cj-held/'+p.id.split('/').at(-1),{type:'json'})));
+          for(let i=0;i<incoming.products.nodes.length;i++){
+            const product=incoming.products.nodes[i],variant=product.variants.nodes[0];
+            const source=variant&&supplierContext({...variant,product});
+            if(held[i]||!source||!mainCatalogContext(product))continue;
+            if((await db.get('shipping/private/import-retry/'+product.id.split('/').at(-1),{type:'json'}))?.until>Date.now())continue;
+            job={variantId:variant.id,sku:variant.sku,...source,destination:launchDestinations[0],importProductId:product.id};break;
+          }
+          if(!job?.importProductId){
+            const page=incoming.products.pageInfo;
+            if(page.hasNextPage&&!page.endCursor)throw Error('Incomplete import scan');
+            await db.setJSON('shipping/private/import-scan',{after:page.hasNextPage?page.endCursor:null});
+          }
+        }
+      }
       if(!job){
         const data=await admin(`query($after:String){productVariants(first:100,after:$after){nodes{id sku selectedOptions{name value} product{id tags status vendor productType title}} pageInfo{hasNextPage endCursor}}}`,{after:cursor?.after||null});
         const eligible=data.productVariants.nodes.filter(supplierContext);
@@ -97,6 +132,7 @@ export function createContextPricingJob({production=false,storefrontConfig,env=p
       if(quote.status!=='available'){
         await revokeDestination({admin,db,variantId:job.variantId,destination:job.destination});
         report.status='route_unavailable';
+        if(job.importProductId)await db.setJSON('shipping/private/import-retry/'+job.importProductId.split('/').at(-1),{until:Date.now()+600000});
         if(catalogAdvance)await db.setJSON('shipping/private/context-cursor',catalogAdvance);
       }else{
         const prepared=await prepare({admin,db,variantId:job.variantId,expectedSku:job.sku,browsing:job.browsing,category:job.category,destination:job.destination,quote,onStage:stage=>{report.stage=stage;}});
@@ -114,7 +150,7 @@ export function createContextPricingJob({production=false,storefrontConfig,env=p
       await update(db,'shipping/private/context-routes',old=>({items:[...(old?.items||[]).filter(i=>i.variantId!==job.variantId||i.destination!==job.destination),{...job,checkedAt:Date.now()}].slice(-2000)}));
     }catch(error){if(!locked&&error.message==='Worker already running')return new Response(null,{status:204});report.status='failed';report.error=error.message==='Shipping and market permission required'?error.message:'Destination configuration or supplier validation failed';if(['CJ fulfillment location requires review','CJ fulfillment groups require review','CJ fulfillment location was not confirmed','Ambiguous destination market','Destination market needs merchant review','Native country price not confirmed; shipping remains unchanged','Included shipping rate was not confirmed','Supplier quote temporarily unavailable'].includes(error.message))report.reason=error.message;if(error.missingScopes)report.missingScopes=error.missingScopes;if(error.adminErrors?.length)report.adminErrors=error.adminErrors;if(["CJ shared shipping profile was not confirmed","CJ holding profile must have no shipping rates","Large CJ product requires a paginated import","New CJ draft status was not confirmed"].includes(error.message))report.reason=error.message;}
     finally{
-      if(locked){await db.setJSON('shipping/private/context-last-run',report);await db.setJSON('shipping/private/context-lease',{until:0});console.log(JSON.stringify(report));}
+      if(locked){if(report.status==='failed'&&job?.importProductId)await db.setJSON('shipping/private/import-retry/'+job.importProductId.split('/').at(-1),{until:Date.now()+600000});await db.setJSON('shipping/private/context-last-run',report);await db.setJSON('shipping/private/context-lease',{until:0});console.log(JSON.stringify(report));}
     }
     if(report.status==='failed')throw Error(report.error);
     return new Response(null,{status:204});

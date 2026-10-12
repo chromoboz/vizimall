@@ -21,7 +21,9 @@ await writeFile('.generated/functions/customer.mjs', handler);
 const productionRetention = process.env.CONTEXT === 'production';
 await copyFile('backend-destination-job.mjs','.generated/lib/backend-destination-job.mjs');
 await writeFile('.generated/functions/shipping-countries.mjs', `import {createDestinationJob} from '../lib/backend-destination-job.mjs';\nconst window = {};\n${storefrontConfiguration}\nexport default createDestinationJob({production:${productionRetention},storefrontConfig:window.VIZIMALL_SHOPIFY});\nexport const config = {schedule:'* * * * *'};\n`);
-await writeFile('.generated/functions/pricing-sync.mjs', `import { createContextPricingJob } from '../lib/backend-context-job.mjs';\nconst window = {};\n${storefrontConfiguration}\nexport default createContextPricingJob({production:${productionRetention},storefrontConfig:window.VIZIMALL_SHOPIFY});\nexport const config = {schedule:'*/2 * * * *'};\n`);
+await copyFile('backend-pricing-batch.mjs','.generated/lib/backend-pricing-batch.mjs');
+await writeFile('.generated/functions/pricing-sync.mjs', `import {createPricingDispatch} from '../lib/backend-pricing-batch.mjs';\nexport default createPricingDispatch({production:${productionRetention}});\nexport const config = {schedule:'*/2 * * * *'};\n`);
+await writeFile('.generated/functions/pricing-batch-background.mjs', `import {createPricingBatch} from '../lib/backend-pricing-batch.mjs';\nconst window = {};\n${storefrontConfiguration}\nexport default createPricingBatch({production:${productionRetention},storefrontConfig:window.VIZIMALL_SHOPIFY});\nexport const config = {background:true};\n`);
 await writeFile('.generated/functions/retention.mjs', `import { store } from '../lib/backend-persistence.mjs';
 import { purgeAudience } from '../lib/backend-audience.mjs';
 export default async function () { if (${productionRetention}) await purgeAudience(await store(new Request('https://vizimall.com'))); return new Response(null, {status:204}); }
