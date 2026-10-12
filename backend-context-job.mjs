@@ -31,7 +31,8 @@ export function createContextPricingJob({production=false,prioritizeImports=fals
       if(prioritizeImports){
         // Oldest drafts first: publication of one option must not wait for all
         // options of older active products. Completed drafts leave this query.
-        const pending=await admin(`query{products(first:100,query:"vendor:CJdropshipping status:draft",sortKey:CREATED_AT){nodes{id tags status vendor productType title variants(first:1){nodes{id sku selectedOptions{name value}}}}}}`);
+        const pendingScan=await db.get('shipping/private/draft-import-scan',{type:'json'});
+        const pending=await admin(`query($after:String){products(first:100,after:$after,query:"vendor:CJdropshipping status:draft",sortKey:CREATED_AT){nodes{id tags status vendor productType title variants(first:1){nodes{id sku selectedOptions{name value}}}} pageInfo{hasNextPage endCursor}}}`,{after:pendingScan?.after||null});
         for(const product of pending.products.nodes){
           if(!mainCatalogContext(product)||product.status!=='DRAFT')continue;
           if((await db.get('shipping/private/import-retry/'+product.id.split('/').at(-1),{type:'json'}))?.until>Date.now())continue;
@@ -44,6 +45,9 @@ export function createContextPricingJob({production=false,prioritizeImports=fals
           break;
         }
         if(!job?.importProductId){
+          const page=pending.products.pageInfo;
+          if(page?.hasNextPage&&!page.endCursor)throw Error('Incomplete draft import scan');
+          await db.setJSON('shipping/private/draft-import-scan',{after:page?.hasNextPage?page.endCursor:null});
           // CJ may create ACTIVE imports. Discover those too, then the existing
           // hold/stock/cost checks put them in DRAFT before preparing prices.
           const scan=await db.get('shipping/private/import-scan',{type:'json'});

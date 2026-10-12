@@ -31,6 +31,7 @@ export function createPricingBatch({production=false,env=process.env,dbFactory=s
     const started=clock();let completed=0,failed=0;
     try{
       for(let step=0;step<maxSteps&&clock()-started<budgetMs-30000;step++){
+        if((await db.get('shipping/private/context-lease',{type:'json'}))?.until>clock())break;
         // Same durable country cursor and exact-price gate. No parallel writes
         // to shared profiles or bursts of supplier requests.
         try{await run();completed++;}catch{failed++;break;}
