@@ -72,6 +72,8 @@ test('Scheduled main catalog preparation visits all eight destinations and priva
   const product={id:'gid://shopify/Product/1',vendor:'CJdropshipping',title:'Neck Massager',status:'DRAFT',tags:[]};
   values.set('shipping/private/cj-held/1',{preparedAt:Date.now()});
   values.set('shipping/private/import-retry/blocked',{until:Date.now()+600000});
+  values.set('shipping/private/context-queue',{items:[{variantId,sku,browsing:'CN',category:'beauty',destination:'DE'}]});
+  values.set('shipping/private/context-cursor',{version:3,index:0,queuedLast:false,migrating:false});
   const variant={id:variantId,sku,price:'5.90',product,contextualPricing:{price:{amount:'5.90',currencyCode:'EUR'}}};
   const destinations=[];
   let publications=0;
@@ -95,7 +97,7 @@ test('Scheduled main catalog preparation visits all eight destinations and priva
     values.set('shipping/private/cj-candidate/1/'+destination,{sku,price,policy:mainPricingPolicy,expiresAt:Date.now()+3600000});
     return {profileConfirmed:destinations.length===8,price};
   }});
-  for(let i=0;i<8;i++){await run();assert.equal(publications,i===7?1:0);}
+  for(let i=0;i<8;i++){await run();assert.equal(publications,i===7?1:0);assert.equal(values.get('shipping/private/context-queue').items.length,i===7?0:1);}
   assert.deepEqual(destinations,launchDestinations);
   assert.equal(values.get('shipping/private/context-last-run').status,'verified');
 });

@@ -12,7 +12,7 @@ export function createContextPricingJob({production=false,prioritizeImports=fals
   return async()=>{
     if(!production||env.VIZIMALL_NATIVE_SHIPPING_ENABLED!=='true')return new Response(null,{status:204});
     const db=await dbFactory(new Request('https://vizimall.com'));
-    let locked=false,job,catalogAdvance;
+    let locked=false,job,catalogAdvance,preparationComplete=false,routeUnavailable=false;
     const report={status:'checking',checkedAt:new Date().toISOString()};
     const deadline=Date.now()+26000;
     const boundedFetch=(url,options={})=>fetcher(url,{...options,signal:AbortSignal.any([...(options.signal?[options.signal]:[]),AbortSignal.timeout(Math.max(1,Math.min(6000,deadline-Date.now())))])});
@@ -29,7 +29,12 @@ export function createContextPricingJob({production=false,prioritizeImports=fals
       // and existing routes cannot starve behind visitor requests.
       const queued=queue?.items?.[0]||oldRoute;
       job=(cursor?.migrating&&(!queued||queued.browsing==='CN'))||cursor?.queuedLast?null:queued;
-      if(prioritizeImports){
+      if(job?.browsing==='CN'){
+        const records=await Promise.all(launchDestinations.map(d=>db.get('shipping/private/cj-candidate/'+job.variantId.split('/').at(-1)+'/'+d,{type:'json'})));
+        const missing=records.findIndex(r=>r?.sku!==job.sku||r.policy!==mainPricingPolicy||r.expiresAt<=Date.now());
+        job={...job,destination:missing<0?job.destination:launchDestinations[missing]};
+      }
+      if(prioritizeImports&&!job){
         // Oldest drafts first: publication of one option must not wait for all
         // options of older active products. Completed drafts leave this query.
         const pendingScan=await db.get('shipping/private/draft-import-scan',{type:'json'});
@@ -109,7 +114,7 @@ export function createContextPricingJob({production=false,prioritizeImports=fals
         await db.setJSON('shipping/private/context-cursor',nextVariant?catalogAdvance:{...cursor,version:3,queuedLast:false,index,destinationIndex,after:cursor?.after||null});
         if(variant){const source=supplierContext(variant);job={variantId:variant.id,sku:variant.sku,...source,destination:main?launchDestinations[destinationIndex]:source.browsing};}
         else job=queue?.items?.[0]||oldRoute;
-      }else await db.setJSON('shipping/private/context-cursor',{...cursor,queuedLast:true});
+      }else await db.setJSON('shipping/private/context-cursor',{...cursor,queuedLast:!job.importProductId});
       if(!job){report.status='empty_catalog';return new Response(null,{status:204});}
       report.variantId=job.variantId;report.destination=job.destination;
       const fresh=await admin(`query($id:ID!,$country:CountryCode!){shop{currencyCode} node(id:$id){... on ProductVariant{id sku price product{id tags status vendor productType title} contextualPricing(context:{country:$country}){price{amount currencyCode}}}}}`,{id:job.variantId,country:job.destination});
@@ -152,10 +157,12 @@ export function createContextPricingJob({production=false,prioritizeImports=fals
       if(quote.status!=='available'){
         await revokeDestination({admin,db,variantId:job.variantId,destination:job.destination});
         report.status='route_unavailable';
+        routeUnavailable=true;
         if(job.importProductId)await db.setJSON('shipping/private/import-retry/'+job.importProductId.split('/').at(-1),{until:Date.now()+600000});
         if(catalogAdvance)await db.setJSON('shipping/private/context-cursor',catalogAdvance);
       }else{
         const prepared=await prepare({admin,db,variantId:job.variantId,expectedSku:job.sku,browsing:job.browsing,category:job.category,destination:job.destination,quote,onStage:stage=>{report.stage=stage;}});
+        preparationComplete=prepared?.profileConfirmed===true;
         if(job.destination===job.browsing)await update(db,baseKey,previous=>({...previous,lastWritten:quote.pricing.unitPrice}));
         report.status=prepared?.profileConfirmed===false?'preparing_countries':'verified';
         if(prepared?.profileConfirmed===true&&mainCatalogContext(fresh.node.product)&&fresh.node.product.status==='DRAFT'){
@@ -166,7 +173,7 @@ export function createContextPricingJob({production=false,prioritizeImports=fals
         if(prepared?.price)report.price=prepared.price;
         if(catalogAdvance&&prepared?.profileConfirmed===true)await db.setJSON('shipping/private/context-cursor',catalogAdvance);
       }
-      await update(db,'shipping/private/context-queue',old=>({items:(old?.items||[]).filter(i=>i.variantId!==job.variantId||i.destination!==job.destination)}));
+      await update(db,'shipping/private/context-queue',old=>({items:(old?.items||[]).filter(i=>i.variantId!==job.variantId||(job.browsing==='CN'?!preparationComplete&&!routeUnavailable:i.destination!==job.destination))}));
       await update(db,'shipping/private/context-routes',old=>({items:[...(old?.items||[]).filter(i=>i.variantId!==job.variantId||i.destination!==job.destination),{...job,checkedAt:Date.now()}].slice(-2000)}));
     }catch(error){if(!locked&&error.message==='Worker already running')return new Response(null,{status:204});report.status='failed';report.error=error.message==='Shipping and market permission required'?error.message:'Destination configuration or supplier validation failed';if(['CJ fulfillment location requires review','CJ fulfillment groups require review','CJ fulfillment location was not confirmed','Ambiguous destination market','Destination market needs merchant review','Native country price not confirmed; shipping remains unchanged','Included shipping rate was not confirmed','Supplier quote temporarily unavailable'].includes(error.message))report.reason=error.message;if(error.missingScopes)report.missingScopes=error.missingScopes;if(error.adminErrors?.length)report.adminErrors=error.adminErrors;if(["CJ shared shipping profile was not confirmed","CJ holding profile must have no shipping rates","Large CJ product requires a paginated import","New CJ draft status was not confirmed"].includes(error.message))report.reason=error.message;}
     finally{

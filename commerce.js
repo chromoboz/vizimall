@@ -533,7 +533,9 @@ function createShippingQuoteClient(root) {
       select.id = selectId; selectLabel.htmlFor = selectId;
       // CJ options in the holding profile are unavailable for checkout. Do not
       // fill the product screen with disabled choices while they are prepared.
-      const offeredVariants=/^cjdropshipping$/i.test(detail.vendor||'')?detail.variants.filter(v=>v.availableForSale):detail.variants;
+      const isCJ=/^cjdropshipping$/i.test(detail.vendor||'');
+      const offeredVariants=isCJ?detail.variants.filter(v=>v.availableForSale):detail.variants;
+      const noDeliveryOptions=isCJ&&offeredVariants.length===0;
       for (const variant of offeredVariants) {
         const option = element('option', '', `${variant.title === 'Default Title' ? tr('Standard') : variant.title} · ${money(variant.price)}${variant.availableForSale ? '' : ' · '+tr('Sold out')}`);
         option.value = variant.id; option.disabled = !variant.availableForSale; select.append(option);
@@ -581,9 +583,9 @@ function createShippingQuoteClient(root) {
         else if (photos.length) choosePhoto(0);
         price.textContent = variant ? money(variant.price) : '';
         selectedOption.textContent = variant && variant.title !== 'Default Title' ? `Selected: ${variant.title}` : '';
-        stockStatus.textContent = !variant?.availableForSale ? 'Sold out' : variant.currentlyNotInStock ? 'Available to order · delivery may take longer' : Number.isInteger(variant.quantityAvailable) && variant.quantityAvailable > 0 ? `${variant.quantityAvailable.toLocaleString(document.documentElement.lang)} remaining · selected option` : 'In stock · quantity unavailable';
+        stockStatus.textContent = noDeliveryOptions ? 'No purchasable options for this delivery country. Please choose another delivery country or check again later.' : !variant?.availableForSale ? 'Sold out' : variant.currentlyNotInStock ? 'Available to order · delivery may take longer' : Number.isInteger(variant.quantityAvailable) && variant.quantityAvailable > 0 ? `${variant.quantityAvailable.toLocaleString(document.documentElement.lang)} remaining · selected option` : 'In stock · quantity unavailable';
         optionButtons.forEach(({ choice, name, value }) => choice.setAttribute('aria-pressed', String(variant?.selectedOptions?.some(o => o.name === name && o.value === value) || false)));
-        if (typeof add !== 'undefined') { add.disabled = true; add.textContent = variant?.availableForSale ? 'Checking shipping…' : 'Sold out'; }
+        if (typeof add !== 'undefined') { add.disabled = true; add.textContent = variant?.availableForSale ? 'Checking shipping…' : noDeliveryOptions ? 'Delivery unavailable' : 'Sold out'; }
       }
       select.addEventListener('change', showVariantPhoto);
       const add = button(available ? 'Add to bag' : 'Sold out', async () => {
@@ -611,7 +613,7 @@ function createShippingQuoteClient(root) {
         add.textContent=quote?.pricing?.checkoutReady?'Add to bag':quote?.status==='available'?'Checkout price pending':quote?'Shipping unavailable':'Checking shipping…';
       });
       status.textContent = '';
-      selectLabel.hidden = select.hidden = optionGroups.size > 0 || detail.variants.length < 2;
+      selectLabel.hidden = select.hidden = noDeliveryOptions || optionGroups.size > 0 || detail.variants.length < 2;
       const purchaseActions = element('div', 'purchase-actions');
       purchaseActions.append(add, button('View bag', () => { modal.close(); cartButton.click(); }, 'commerce-secondary'));
       copy.append(selectLabel, select, selectedOption, stockStatus, purchaseActions, status, information.delivery);

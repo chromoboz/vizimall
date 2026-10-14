@@ -1,8 +1,13 @@
 import { readdir, mkdir, copyFile, readFile, writeFile } from 'node:fs/promises';
+import {createHash} from 'node:crypto';
 // Publish only browser assets. Server code, package files and tests stay private.
 await mkdir('dist', { recursive: true });
+const commerceRevision=createHash('sha256').update(await readFile('commerce.js')).digest('hex').slice(0,12);
 for (const file of await readdir('.')) {
-  if (/\.(html|css|js|svg|png|webp|avif)$/.test(file) && !file.endsWith('.test.js')) await copyFile(file, `dist/${file}`);
+  if (/\.(html|css|js|svg|png|webp|avif)$/.test(file) && !file.endsWith('.test.js')) {
+    if(file.endsWith('.html'))await writeFile(`dist/${file}`,(await readFile(file,'utf8')).replace(/commerce\.js(?:\?v=[^"']+)?/g,'commerce.js?v='+commerceRevision));
+    else await copyFile(file, `dist/${file}`);
+  }
 }
 await copyFile('_headers', 'dist/_headers');
 await copyFile('map-attribution.txt', 'dist/map-attribution.txt');
