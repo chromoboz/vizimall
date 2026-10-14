@@ -57,6 +57,7 @@ export async function prepareSharedRoute({admin,db,fields,variantId,sku,destinat
   const fresh=await admin(`query($id:ID!){node(id:$id){... on ProductVariant{sku deliveryProfile{${fields}}}}}`,{id:variantId});
   if(fresh.node?.sku!==sku||fresh.node.deliveryProfile?.id!==profile.id||!verifiedProfile(fresh.node.deliveryProfile,locationId))throw Error('CJ shared shipping profile was not confirmed');
   for(let i=0;i<launchDestinations.length;i++)await db.setJSON('shipping/private/context-price/'+variantId.split('/').at(-1)+'/'+launchDestinations[i],{...records[i],profileConfirmed:true,profileId:profile.id});
+  await db.setJSON('shipping/private/cj-ready/'+variantId.split('/').at(-1),{sku,policy:mainPricingPolicy,expiresAt:Math.min(...records.map(r=>r.expiresAt))});
   return {...candidate,profileConfirmed:true,profileId:profile.id};
 }
 export const sharedReadyProfileName=readyName;

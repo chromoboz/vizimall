@@ -121,6 +121,7 @@ export async function prepareDestinationPrice({admin,db,variantId,expectedSku,br
   return record;
 }
 export async function revokeDestination({admin,db,variantId,destination}){
+  await db.setJSON('shipping/private/cj-ready/'+variantId.split('/').at(-1),{expiresAt:0});
   await db.setJSON('shipping/private/context-price/'+variantId.split('/').at(-1)+'/'+destination,{expiresAt:0,profileConfirmed:false});
   const data=await admin(`query($id:ID!){node(id:$id){... on ProductVariant{deliveryProfile{${profileFields}}}}}`,{id:variantId});
   const profile=data.node?.deliveryProfile;

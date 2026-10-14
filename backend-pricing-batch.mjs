@@ -36,7 +36,7 @@ export function createPricingBatch({production=false,env=process.env,dbFactory=s
         // to shared profiles or bursts of supplier requests.
         try{await run();completed++;}catch{failed++;break;}
         const last=await db.get('shipping/private/context-last-run',{type:'json'});
-        if(!last||last.status==='empty_catalog')break;
+        if(!last||['empty_catalog','idle'].includes(last.status))break;
       }
     }finally{
       await update(db,leaseKey,old=>old?.owner===owner?{until:0}:old);

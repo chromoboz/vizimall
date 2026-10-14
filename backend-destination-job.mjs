@@ -21,9 +21,13 @@ export function createDestinationJob({production=false,env=process.env,storefron
       // Pricing discovers new imports even before any visitor opens them.
       const routes=await db.get('shipping/private/context-routes',{type:'json'});
       const unique=new Map((routes?.items||[]).map(r=>[r.variantId+'|'+r.sku+'|'+r.browsing,r]));
-      if(unique.size)await enqueueDestinationDiscoveries(db,[...unique.values()].map(route=>({variantId:route.variantId,sku:route.sku,browsing:route.browsing,category:route.category,quantity:1})));
+      // Main CJ imports already verify all eight destinations in the pricing
+      // worker. Do not maintain a duplicate recurring freight discovery queue.
+      const legacy=[...unique.values()].filter(route=>route.browsing!=='CN');
+      if(legacy.length)await enqueueDestinationDiscoveries(db,legacy.map(route=>({variantId:route.variantId,sku:route.sku,browsing:route.browsing,category:route.category,quantity:1})));
       const queue=await db.get('shipping/private/discovery-queue',{type:'json'});
       for(const job of [...(queue?.items||[])].sort((a,b)=>a.lastRun-b.lastRun)){
+        if(job.browsing==='CN')continue;
         const key='shipping/private/destinations/'+hash(JSON.stringify([job.variantId,job.sku,job.browsing,job.quantity]));
         const state=await db.get(key,{type:'json'});
         const codes=job.browsing==='CN'?launchDestinations:globalThis.VizimallDestinations.codes;

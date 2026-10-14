@@ -26,3 +26,8 @@ test('Failure releases the batch lock and preserves durable country progress for
  await createPricingBatch({production:true,env,dbFactory:async()=>f.db,jobFactory:()=>async()=>{throw Error('CJ temporarily unavailable');}})(request);
  assert.equal(f.values.get('shipping/private/pricing-batch-lease').until,0);assert.deepEqual(f.values.get('shipping/private/context-cursor'),{index:2,destinationIndex:3});
 });
+test('An idle catalog stops immediately instead of running all 48 steps',async()=>{
+ const f=fixture(),request=await signed(f.db);let calls=0;
+ await createPricingBatch({production:true,env,dbFactory:async()=>f.db,jobFactory:()=>async()=>{calls++;f.values.set('shipping/private/context-last-run',{status:'idle'});}})(request);
+ assert.equal(calls,1);assert.equal(f.values.get('shipping/private/pricing-batch-lease').until,0);
+});

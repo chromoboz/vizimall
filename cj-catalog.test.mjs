@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {supplierContext} from './backend-context-pricing.mjs';
 import {launchDestinations} from './backend-cj-catalog.mjs';
 import {prepareSharedRoute,sharedProfile} from './backend-cj-profiles.mjs';
-import {createContextPricingJob} from './backend-context-job.mjs';
+import {createContextPricingJob,readyForCatalog} from './backend-context-job.mjs';
 import {requiredShippingScopes} from './backend-context-pricing.mjs';
 import {mainPricingPolicy} from './backend-included-pricing.mjs';
 test('CJ main catalog requires neither country nor category tags and preserves actual supplier identity',()=>{
@@ -15,7 +15,26 @@ test('CJ main catalog requires neither country nor category tags and preserves a
   assert.equal(supplierContext({sku:'CJAM130816105EV',product:{...product,vendor:'Kersten B.V.'}}),null);
 });
 const sku='CJTEST1',variantId='gid://shopify/ProductVariant/1',price={amount:'15.90',currencyCode:'EUR'};
+test('Only exact current-policy unexpired readiness skips supplier work',()=>{
+ const now=1000,v={sku};const good={sku,policy:mainPricingPolicy,expiresAt:2000};
+ assert.equal(readyForCatalog(good,v,now),true);
+ for(const record of [null,{...good,sku:'CJCHANGED'},{...good,policy:'old'},{...good,expiresAt:now}])assert.equal(readyForCatalog(record,v,now),false);
+});
 function dbFixture(){const values=new Map();return {values,db:{get:async k=>values.get(k),setJSON:async(k,v)=>values.set(k,v)}};}
+test('A fully current catalog does not quote CJ or rewrite Shopify prices',async()=>{
+ const {db,values}=dbFixture();db.getWithMetadata=async k=>values.has(k)?{data:values.get(k),etag:'1'}:null;
+ const save=db.setJSON;db.setJSON=async(k,v)=>{await save(k,v);return {modified:true};};
+ values.set('shipping/private/context-routes',{items:[{variantId,sku,browsing:'CN',category:'pets',destination:'DE',checkedAt:0}]});
+ values.set('shipping/private/cj-ready/1',{sku,policy:mainPricingPolicy,expiresAt:Date.now()+60000});
+ const product={id:'gid://shopify/Product/1',vendor:'CJdropshipping',status:'ACTIVE',title:'Pet brush',tags:[]};
+ const admin=async q=>{
+  if(q.includes('currentAppInstallation'))return {currentAppInstallation:{accessScopes:requiredShippingScopes.map(handle=>({handle}))}};
+  if(q.includes('productVariants('))return {productVariants:{nodes:[{id:variantId,sku,product}],pageInfo:{hasNextPage:false}}};
+  throw Error('No price or profile request is needed');
+ };
+ await createContextPricingJob({production:true,env:{VIZIMALL_NATIVE_SHIPPING_ENABLED:'true'},storefrontConfig:{domain:'example.myshopify.com'},dbFactory:async()=>db,adminFactory:()=>admin,shippingFactory:()=>{throw Error('No supplier request is needed');}})();
+ assert.equal(values.get('shipping/private/context-last-run').status,'idle');
+});
 test('One-country price cannot open the shared eight-country route',async()=>{
   const {db}=dbFixture();
   const record=await prepareSharedRoute({admin:()=>{throw Error('No native route may open yet');},db,fields:'id',variantId,sku,destination:'DE',price,locationId:'CJ'});

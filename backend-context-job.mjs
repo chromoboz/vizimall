@@ -5,6 +5,7 @@ import {baselineForSync,mainPricingPolicy} from './backend-included-pricing.mjs'
 import {assertShippingScopes,supplierContext,prepareDestinationPrice,revokeDestination,profileFields} from './backend-context-pricing.mjs';
 import {mainCatalogContext,launchDestinations} from './backend-cj-catalog.mjs';
 import {sharedProfile} from './backend-cj-profiles.mjs';
+export const readyForCatalog=(record,variant,now=Date.now())=>record?.sku===variant.sku&&record?.policy===mainPricingPolicy&&record?.expiresAt>now;
 // One bounded scheduled worker handles all supplier malls and destinations.
 // Activation is explicit after the merchant approves the additional app scopes.
 export function createContextPricingJob({production=false,prioritizeImports=false,storefrontConfig,env=process.env,dbFactory=store,fetcher=fetch,adminFactory=createAdminPricingClientFromEnv,prepare=prepareDestinationPrice,shippingFactory=createShippingHandler}={}){
@@ -21,7 +22,7 @@ export function createContextPricingJob({production=false,prioritizeImports=fals
       await assertShippingScopes(admin);
       const queue=await db.get('shipping/private/context-queue',{type:'json'});
       const routes=await db.get('shipping/private/context-routes',{type:'json'});
-      const oldRoute=(routes?.items||[]).find(r=>r.checkedAt<Date.now()-1800000);
+      const oldRoute=(routes?.items||[]).find(r=>r.browsing!=='CN'&&r.checkedAt<Date.now()-1800000);
       let cursor=await db.get('shipping/private/context-cursor',{type:'json'});
       if(cursor?.version!==3){cursor={version:3,index:0,destinationIndex:0,after:null,queuedLast:false,migrating:true};await db.setJSON('shipping/private/context-cursor',cursor);}
       // Alternate queued destination requests with catalog checks so new imports
@@ -79,13 +80,28 @@ export function createContextPricingJob({production=false,prioritizeImports=fals
         const variants=[];
         for(let row=0;row<eligible.length;row++)for(const group of products.values())if(group[row])variants.push(group[row]);
         if(data.productVariants.pageInfo.hasNextPage&&!data.productVariants.pageInfo.endCursor)throw Error('Incomplete catalog');
-        const index=(cursor?.index||0)%Math.max(1,variants.length),variant=variants[index];
+        const ready=await Promise.all(variants.map(v=>mainCatalogContext(v.product)?db.get('shipping/private/cj-ready/'+v.id.split('/').at(-1),{type:'json'}):null));
+        const start=(cursor?.index||0)%Math.max(1,variants.length);
+        const index=Array.from({length:variants.length},(_,i)=>(start+i)%variants.length).find(i=>!readyForCatalog(ready[i],variants[i]));
+        if(index===undefined){
+          await db.setJSON('shipping/private/context-cursor',{...cursor,queuedLast:false,index:0,after:data.productVariants.pageInfo.hasNextPage?data.productVariants.pageInfo.endCursor:null});
+          report.status=data.productVariants.pageInfo.hasNextPage?'catalog_page_current':'idle';return new Response(null,{status:204});
+        }
+        const variant=variants[index];
         const main=variant&&mainCatalogContext(variant.product);
         let destinationIndex=0;
         if(main){
           const root='shipping/private/cj-candidate/'+variant.id.split('/').at(-1)+'/';
           const records=await Promise.all(launchDestinations.map(d=>db.get(root+d,{type:'json'})));
           const missing=records.findIndex(r=>r?.sku!==variant.sku||r.policy!==mainPricingPolicy||r.expiresAt<=Date.now());
+          if(missing<0){
+            const confirmed=await Promise.all(launchDestinations.map(d=>db.get('shipping/private/context-price/'+variant.id.split('/').at(-1)+'/'+d,{type:'json'})));
+            if(confirmed.every(r=>r?.profileConfirmed===true&&readyForCatalog(r,variant))){
+              await db.setJSON('shipping/private/cj-ready/'+variant.id.split('/').at(-1),{sku:variant.sku,policy:mainPricingPolicy,expiresAt:Math.min(...confirmed.map(r=>r.expiresAt))});
+              await db.setJSON('shipping/private/context-cursor',{...cursor,queuedLast:false,index:index+1});
+              report.status='already_current';return new Response(null,{status:204});
+            }
+          }
           destinationIndex=missing<0?0:missing;
         }
         const nextVariant=!main;
