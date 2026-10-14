@@ -1,0 +1,30 @@
+import { readdir, mkdir, copyFile, readFile, writeFile } from 'node:fs/promises';
+// Publish only browser assets. Server code, package files and tests stay private.
+await mkdir('dist', { recursive: true });
+for (const file of await readdir('.')) {
+  if (/\.(html|css|js|svg|png|webp|avif)$/.test(file) && !file.endsWith('.test.js')) await copyFile(file, `dist/${file}`);
+}
+await copyFile('_headers', 'dist/_headers');
+await copyFile('map-attribution.txt', 'dist/map-attribution.txt');
+await mkdir('.generated/functions', { recursive: true });
+await writeFile('.generated/functions/destination.mjs', `export default function(_request,context={}) { const code=context.geo?.country?.code; return Response.json({country:typeof code==='string'&&/^[A-Z]{2}$/.test(code)?code:null},{headers:{'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}}); }\n`);
+await mkdir('.generated/lib', { recursive: true });
+await copyFile('backend-shipping.mjs', '.generated/lib/backend-shipping.mjs');
+await copyFile('backend-autods-shipping.mjs', '.generated/lib/backend-autods-shipping.mjs');
+await copyFile('shipping-audit-catalog.mjs', '.generated/lib/shipping-audit-catalog.mjs');
+for (const file of ['backend-cj-profiles.mjs','backend-cj-catalog.mjs','backend-included-pricing.mjs', 'backend-price-sync.mjs', 'backend-pricing-job.mjs','backend-context-pricing.mjs','backend-context-job.mjs','backend-destinations.mjs','backend-destination-audit.mjs','shipping-destinations.js']) await copyFile(file, `.generated/lib/${file}`);
+const storefrontConfiguration = await readFile('shopify-config.js', 'utf8');
+await writeFile('.generated/functions/shipping.mjs', `import { createShippingHandler } from '../lib/backend-shipping.mjs';\nimport { shippingAuditSkus } from '../lib/shipping-audit-catalog.mjs';\nconst window = {};\n${storefrontConfiguration}\nexport default createShippingHandler({ storefrontConfig: window.VIZIMALL_SHOPIFY, probeSkus: shippingAuditSkus, pricing:true });\n`);
+for (const file of ['backend-rules.mjs', 'backend-persistence.mjs', 'backend-reviews.mjs', 'backend-shopify.mjs', 'backend-audience.mjs','backend-profile.mjs','backend-cart.mjs']) await copyFile(file, `.generated/lib/${file}`);
+const handler = (await readFile('backend-customer.mjs', 'utf8')).replaceAll("from './backend-", "from '../lib/backend-");
+await writeFile('.generated/functions/customer.mjs', handler);
+const productionRetention = process.env.CONTEXT === 'production';
+await copyFile('backend-destination-job.mjs','.generated/lib/backend-destination-job.mjs');
+await writeFile('.generated/functions/shipping-countries.mjs', `import {createDestinationJob} from '../lib/backend-destination-job.mjs';\nconst window = {};\n${storefrontConfiguration}\nexport default createDestinationJob({production:${productionRetention},storefrontConfig:window.VIZIMALL_SHOPIFY});\nexport const config = {schedule:'*/15 * * * *'};\n`);
+await copyFile('backend-pricing-batch.mjs','.generated/lib/backend-pricing-batch.mjs');
+await writeFile('.generated/functions/pricing-sync.mjs', `import {createPricingDispatch} from '../lib/backend-pricing-batch.mjs';\nexport default createPricingDispatch({production:${productionRetention}});\nexport const config = {schedule:'*/2 * * * *'};\n`);
+await writeFile('.generated/functions/pricing-batch-background.mjs', `import {createPricingBatch} from '../lib/backend-pricing-batch.mjs';\nconst window = {};\n${storefrontConfiguration}\nexport default createPricingBatch({production:${productionRetention},storefrontConfig:window.VIZIMALL_SHOPIFY});\nexport const config = {background:true};\n`);
+await writeFile('.generated/functions/retention.mjs', `import { store } from '../lib/backend-persistence.mjs';
+import { purgeAudience } from '../lib/backend-audience.mjs';
+export default async function () { if (${productionRetention}) await purgeAudience(await store(new Request('https://vizimall.com'))); return new Response(null, {status:204}); }
+export const config = { schedule: '17 3 * * *' };\n`);

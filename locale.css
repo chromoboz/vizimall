@@ -1,0 +1,4 @@
+.entry-language{display:flex;align-items:center;gap:.6rem;font-family:Inter,sans-serif;font-size:.75rem;white-space:nowrap}
+.entry-language select{max-width:9rem;padding:.5rem .7rem;border:1px solid #c8bca7;border-radius:.5rem;background:#fffdf7;color:#302719;font:inherit}
+.map-page .topbar{flex-wrap:wrap;gap:1rem}
+@media(max-width:600px){.entry-language{margin-left:auto}.entry-language>span{display:none}.map-page .brand-sub{font-size:.5rem}}
