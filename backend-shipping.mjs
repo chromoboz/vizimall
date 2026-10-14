@@ -264,7 +264,7 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
           }
           productCost=costRecord.productCost;
         }
-        const unit=(main?mainCatalogPrice:includedPrice)({baseUnitPrice:base,supplierCost:standard.supplierCost,productCost,fx});
+        const unit=(main?mainCatalogPrice:includedPrice)({baseUnitPrice:base,supplierCost:standard.supplierCost,productCost,fx,destination});
         const cents=BigInt(unit.lineTotal.amount.replace('.',''))*BigInt(quantity);
         const lineTotal={amount:(cents/100n)+'.'+String(cents%100n).padStart(2,'0'),currencyCode:base.currencyCode};
         const ready=await db.get('shipping/private/context-price/'+id.split('/').at(-1)+'/'+destination,{type:'json'});

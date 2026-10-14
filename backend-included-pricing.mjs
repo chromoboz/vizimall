@@ -1,6 +1,9 @@
 // Private server calculations. Never trust a browser-supplied price or FX rate.
 const supported = new Set(['EUR', 'USD', 'PLN']);
-export const mainPricingPolicy='cost22-shared27-v1';
+export const mainPricingPolicy='cj-ioss-gross-shared27-v2';
+// Standard destination rates used as a conservative pricing budget, not a
+// customer tax determination. Source: Your Europe, checked 14 October 2026.
+export const destinationVatBudget=Object.freeze({DE:19,FR:20,NL:21,PL:23,ES:21,PT:23,IT:22,GR:24});
 function decimal(value) {
   const text = String(value);
   if (!/^\d{1,9}(?:\.\d{1,8})?$/.test(text)) throw new Error('Invalid monetary value');
@@ -52,12 +55,20 @@ export function mainCatalogPrice(args){
   if(product<=0n)throw Error('Verified CJ product cost required');
   // Shared store overhead: regular EUR 27/month / merchant-selected 20
   // total store orders, conservatively budgeted on a one-item order.
-  // Planning VAT 22%, highest currently offered payment fee (Klarna)
+  // CJ's Store Order Amount declaration can assess VAT on the entire store
+  // sale price, rather than extracting VAT with price / 1.22. Budget that
+  // gross basis, destination standard VAT and a provisional 5% handling rate
+  // on VAT (CJ's current guide says the actual rate comes from logistics).
+  // This replaces the former 22% VAT-inclusive planning reserve, without
+  // asserting tax registration, deductibility or all-in customs settlement.
+  // Highest currently offered payment fee (Klarna)
   // 4.99% + .35, returns reserve 5%, supplier FX/payment reserve 2%.
   // These reserves are estimates, not guarantees of actual expenses.
   const reservedCost=((product+shipping)*102n+99n)/100n;
-  const retainedNumerator=1000000n-999n*122n;
-  const minimum=((reservedCost+35n+135n+300n)*1220000n+retainedNumerator-1n)/retainedNumerator;
+  const vat=destinationVatBudget[args.destination];
+  if(!vat)throw Error('Destination IOSS budget unavailable');
+  const retainedNumerator=1000000n-99900n-BigInt(vat)*105n*102n;
+  const minimum=((reservedCost+35n+135n+300n)*1000000n+retainedNumerator-1n)/retainedNumerator;
   const merchantTotal=base+(shipping*130n+99n)/100n;
   const total=(minimum>merchantTotal?minimum:merchantTotal)+advertisingReserve;
   const rounded=total<=90n?90n:((total-90n+99n)/100n)*100n+90n;
