@@ -84,15 +84,19 @@ export function shippingMethods(rows){
     const days=transport.split('-').map(Number);if(days.some(d=>d<1||d>365)||days[0]>days.at(-1))continue;
     try{
       const freight=decimal(row.logisticPrice);
+      // Validate every disclosed charge even when CJ also supplies a total.
+      // A total below its own listed components cannot support a sale price.
+      const parts=[row.logisticPrice,...['taxesFee','clearanceOperationFee','tariff'].map(key=>row[key]??'0')].map(v=>convertCost({amount:v,currencyCode:'USD'},'USD'));
+      const disclosedCents=parts.reduce((sum,p)=>sum+BigInt(p.amount.replace('.','')),0n);
       let cost;
       if(row.totalPostageFee!=null&&row.totalPostageFee!==''){
         const total=decimal(row.totalPostageFee);
         if(total.n*freight.d<freight.n*total.d)continue;
         cost=convertCost({amount:row.totalPostageFee,currencyCode:'USD'},'USD');
+        if(BigInt(cost.amount.replace('.',''))<disclosedCents)continue;
       }else{
         // Include separately reported supplier taxes/clearance fees exactly once.
-        const parts=[row.logisticPrice,...['taxesFee','clearanceOperationFee','tariff'].map(key=>row[key]??'0')].map(v=>convertCost({amount:v,currencyCode:'USD'},'USD'));
-        cost=money(parts.reduce((sum,p)=>sum+BigInt(p.amount.replace('.','')),0n),'USD');
+        cost=money(disclosedCents,'USD');
       }
       result.push({name:name.trim(),transport,supplierCost:cost});
     }catch{/* Missing, malformed or negative prices never qualify a route. */}

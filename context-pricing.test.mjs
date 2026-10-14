@@ -99,6 +99,14 @@ test('Supplier total postage takes precedence; separate fees are added once; mal
   assert.equal(shippingMethods([{...row,totalPostageFee:'8.20'}])[0].supplierCost.amount,'8.20');
   for(const bad of [{logisticAging:'5-3'},{logisticAging:'0'},{logisticPrice:null},{totalPostageFee:'0'},{taxesFee:'unknown'}])assert.deepEqual(shippingMethods([{...row,...bad}]),[]);
 });
+test('Customs totals include disclosed duty once and inconsistent quotes cannot set prices',()=>{
+  const row={logisticName:'Standard',logisticAging:'11-17',logisticPrice:'9.48',tariff:'3.50'};
+  assert.equal(shippingMethods([row])[0].supplierCost.amount,'12.98');
+  assert.equal(shippingMethods([{...row,totalPostageFee:'12.98'}])[0].supplierCost.amount,'12.98');
+  assert.deepEqual(shippingMethods([{...row,totalPostageFee:'9.48'}]),[]);
+  assert.deepEqual(shippingMethods([{...row,totalPostageFee:'12.98',tariff:'unknown'}]),[]);
+});
+
 test('The scheduled worker processes a Greek supplier destination without spreading tags or writing a global price',async()=>{
  const f=fixture();const job={variantId:id,sku:'CJTEST1',browsing:'GR',category:'home',destination:'US'};
  await f.db.setJSON('shipping/private/context-queue',{items:[job]});
