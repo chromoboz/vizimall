@@ -102,9 +102,12 @@ export function createShippingHandler({dbFactory=store, fetcher=fetch, env=proce
           const confirmed=[];
           await Promise.all((p.variants?.nodes||[]).filter(v=>v.availableForSale).map(async v=>{
             const ready=await db.get('shipping/private/context-price/'+v.id.split('/').at(-1)+'/'+destination,{type:'json'});
-            if(ready?.policy===mainPricingPolicy&&ready?.profileConfirmed===true&&ready?.sku===v.sku&&ready?.expiresAt>Date.now()&&ready?.price?.currencyCode==='EUR'&&Number(ready.price.amount)===Number(v.price.amount))confirmed.push(ready.price);
+            if(ready?.policy===mainPricingPolicy&&ready?.profileConfirmed===true&&ready?.sku===v.sku&&ready?.expiresAt>Date.now()&&ready?.price?.currencyCode==='EUR'&&Number(ready.price.amount)===Number(v.price.amount))confirmed.push({price:ready.price,id:v.id,order:p.variants.nodes.indexOf(v)});
           }));
-          if(confirmed.length)prices[p.id]=confirmed.sort((a,b)=>Number(a.amount)-Number(b.amount))[0];
+          if(confirmed.length){
+            const minimum=[...confirmed].sort((a,b)=>Number(a.price.amount)-Number(b.price.amount))[0];
+            prices[p.id]={...minimum.price,confirmedVariantIds:confirmed.sort((a,b)=>a.order-b.order).map(v=>v.id)};
+          }
         }));
         return reply({country:destination,prices});
       }

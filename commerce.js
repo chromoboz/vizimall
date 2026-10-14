@@ -541,8 +541,10 @@ function createShippingQuoteClient(root) {
         option.value = variant.id; option.disabled = !variant.availableForSale; select.append(option);
       }
       const euDestination=['DE','FR','NL','PL','ES','PT','IT','GR'].includes(shippingCountry);
-      const preferred=euDestination&&detail.variants.find(v=>v.availableForSale&&(v.selectedOptions||[]).some(o=>/electrical outlet|plug/i.test(o.name)&&o.value==='EU'));
-      const available = preferred||detail.variants.find(v => v.availableForSale);
+      const confirmedOptions=detail.variants.filter(v=>v.availableForSale&&item.confirmedVariantIds?.includes(v.id));
+      const initialOptions=confirmedOptions.length?confirmedOptions:detail.variants.filter(v=>v.availableForSale);
+      const preferred=euDestination&&initialOptions.find(v=>(v.selectedOptions||[]).some(o=>/electrical outlet|plug/i.test(o.name)&&o.value==='EU'));
+      const available = preferred||initialOptions[0];
       if (available||detail.variants[0]) select.value = (available||detail.variants[0]).id;
       const optionGroups = new Map();
       for (const variant of offeredVariants) for (const option of variant.selectedOptions || []) {
@@ -680,7 +682,7 @@ function createShippingQuoteClient(root) {
         if(!node.isConnected||code!==shippingCountry)continue;
         const verified=prices[item.id]?[prices[item.id]]:[];
         node.textContent=verified.length?'From '+money(verified[0])+' · '+tr('Standard shipping included'):['DE','FR','NL','PL','ES','PT','IT','GR'].includes(code)?tr('Price being confirmed'):tr('Choose delivery country');
-        if(verified.length){item.deliveredPrice=verified[0];node.closest('article').hidden=!priceMatches(item);}
+        if(verified.length){item.deliveredPrice=verified[0];item.confirmedVariantIds=verified[0].confirmedVariantIds;node.closest('article').hidden=!priceMatches(item);}
       }
     });
   }

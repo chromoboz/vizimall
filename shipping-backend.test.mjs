@@ -59,7 +59,7 @@ test('Catalog cards expose only current-policy native-confirmed public variants 
  const product={id:'gid://shopify/Product/11',vendor:'CJdropshipping',availableForSale:true,variants:{nodes:[item],pageInfo:{hasNextPage:false}}};
  const f=fixture({cardProducts:[product],entries:[[key,record]]});
  const url='https://vizimall.com/api/shipping?check=catalog-prices&shipping=DE&products=11';
- assert.deepEqual((await(await f.handler(new Request(url))).json()).prices,{[product.id]:item.price});
+ assert.deepEqual((await(await f.handler(new Request(url))).json()).prices,{[product.id]:{...item.price,confirmedVariantIds:[item.id]}});
  for(const changed of [{policy:'old'},{sku:'changed'},{expiresAt:0},{profileConfirmed:false},{price:{amount:'23.90',currencyCode:'EUR'}}]){
    f.db.values.set(key,{...record,...changed});assert.deepEqual((await(await f.handler(new Request(url))).json()).prices,{});
  }
